@@ -1,0 +1,366 @@
+unit fppunycode;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  SysUtils, Classes
+  ;
+
+function UTF8ToPunycode(const UTF8Str: string): string;
+function PunycodeToUTF8(const aPunycodeStr: string): string;
+
+implementation
+
+const
+  _BASE = 36;
+  _TMIN = 1;
+  _TMAX = 26;
+  _SKEW = 38;
+  _DAMP = 700;
+  _INITIAL_BIAS = 72;
+  _INITIAL_N = $80;
+  _DELIMITER = '-';
+
+type
+  TUnicodeArray = array of Cardinal;
+
+// Bias adaptation for the next iteration
+function Adapt(aDelta, aNumPoints: Cardinal; aFirstTime: Boolean): Cardinal;
+var
+  k: Cardinal;
+begin
+  if aFirstTime then
+    aDelta := aDelta div _DAMP
+  else
+    aDelta := aDelta div 2;
+
+  aDelta := aDelta + (aDelta div aNumPoints);
+  k := 0;
+
+  while aDelta > (((_BASE - _TMIN) * _TMAX) div 2) do
+  begin
+    aDelta := aDelta div (_BASE - _TMIN);
+    Inc(k, _BASE);
+  end;
+
+  Result := k + (((_BASE - _TMIN + 1) * aDelta) div (aDelta + _SKEW));
+end;
+
+// Encode a digit into a character
+function EncodeDigit(aDigit: Cardinal): Char;
+begin
+  if aDigit < 26 then
+    Result := Chr(Ord('a') + aDigit)
+  else
+    Result := Chr(Ord('0') + aDigit - 26);
+end;
+
+// Decode a character into a digit
+function DecodeDigit(C: Char): Cardinal;
+begin
+  if (C >= 'a') and (C <= 'z') then
+    Result := Ord(C) - Ord('a')
+  else if (C >= 'A') and (C <= 'Z') then
+    Result := Ord(C) - Ord('A')
+  else if (C >= '0') and (C <= '9') then
+    Result := Ord(C) - Ord('0') + 26
+  else
+    Result := _BASE; // Error
+end;
+
+// Convert a UTF-8 string into an array of Unicode code points
+function UTF8ToUnicodeArray(const aUTF8Str: string): TUnicodeArray;
+var
+  i, aLen: Integer;
+  aCodePoint: Cardinal;
+  aByteCount: Integer;
+begin
+  Initialize(Result);
+  SetLength(Result, 0);
+  i := 1;
+
+  while i <= Length(aUTF8Str) do
+  begin
+    // Determine the number of bytes in the UTF-8 character
+    if Ord(aUTF8Str[i]) < $80 then
+    begin
+      aCodePoint := Ord(aUTF8Str[i]);
+      aByteCount := 1;
+    end
+    else if (Ord(aUTF8Str[i]) and $E0) = $C0 then
+    begin
+      aCodePoint := Ord(aUTF8Str[i]) and $1F;
+      aByteCount := 2;
+    end
+    else if (Ord(aUTF8Str[i]) and $F0) = $E0 then
+    begin
+      aCodePoint := Ord(aUTF8Str[i]) and $0F;
+      aByteCount := 3;
+    end
+    else if (Ord(aUTF8Str[i]) and $F8) = $F0 then
+    begin
+      aCodePoint := Ord(aUTF8Str[i]) and $07;
+      aByteCount := 4;
+    end
+    else
+    begin
+      // Skip unknown byte
+      Inc(i);
+      Continue;
+    end;
+
+    // Read remaining bytes (simplified)
+    Inc(i);
+    while (aByteCount > 1) and (i <= Length(aUTF8Str)) do
+    begin
+      aCodePoint := (aCodePoint shl 6) or (Ord(aUTF8Str[i]) and $3F);
+      Inc(i);
+      Dec(aByteCount);
+    end;
+
+    // Append code point to array
+    aLen := Length(Result);
+    SetLength(Result, aLen + 1);
+    Result[aLen] := aCodePoint;
+  end;
+end;
+
+// Convert an array of Unicode code points into a UTF-8 string
+function UnicodeArrayToUTF8(const UnicodeArray: TUnicodeArray): string;
+var
+  i: Integer;
+  aCodePoint: Cardinal;
+begin
+  Result := EmptyStr;
+
+  for i := 0 to Length(UnicodeArray) - 1 do
+  begin
+    aCodePoint := UnicodeArray[i];
+
+    if aCodePoint < $80 then
+      Result := Result + Chr(aCodePoint)
+    else if aCodePoint < $800 then
+    begin
+      Result := Result + Chr($C0 or (aCodePoint shr 6));
+      Result := Result + Chr($80 or (aCodePoint and $3F));
+    end
+    else if aCodePoint < $10000 then
+    begin
+      Result := Result + Chr($E0 or (aCodePoint shr 12));
+      Result := Result + Chr($80 or ((aCodePoint shr 6) and $3F));
+      Result := Result + Chr($80 or (aCodePoint and $3F));
+    end
+    else if aCodePoint < $10FFFF then
+    begin
+      Result := Result + Chr($F0 or (aCodePoint shr 18));
+      Result := Result + Chr($80 or ((aCodePoint shr 12) and $3F));
+      Result := Result + Chr($80 or ((aCodePoint shr 6) and $3F));
+      Result := Result + Chr($80 or (aCodePoint and $3F));
+    end;
+  end;
+end;
+
+// Main function for encoding into Punycode
+function UTF8ToPunycode(const UTF8Str: string): string;
+var
+  aInput: TUnicodeArray;
+  aOutput: string;
+  aInputLen, aBasicLen, aHandledLen: Integer;
+  aBias, aDelta, N, M, Q, K, T: Cardinal;
+  i: Integer;
+begin
+  aInput := UTF8ToUnicodeArray(UTF8Str);
+  aInputLen := Length(aInput);
+
+  if aInputLen = 0 then
+    Exit(EmptyStr);
+
+  aOutput := EmptyStr;
+  aBasicLen := 0;
+
+  // Copy all basic ASCII characters
+  for i := 0 to aInputLen - 1 do
+  begin
+    if aInput[i] < $80 then
+    begin
+      aOutput := aOutput + Chr(aInput[i]);
+      Inc(aBasicLen);
+    end;
+  end;
+
+  aHandledLen := aBasicLen;
+
+  // Append delimiter if there are basic characters
+  if (aBasicLen > 0) and (aBasicLen < aInputLen) then
+    aOutput := aOutput + _DELIMITER
+  else if (aBasicLen = aInputLen) then
+  begin
+    Result := aOutput;
+    Exit;
+  end;
+
+  N := _INITIAL_N;
+  aDelta := 0;
+  aBias := _INITIAL_BIAS;
+
+  while aHandledLen < aInputLen do
+  begin
+    // Find the smallest code point >= N
+    M := High(Cardinal);
+    for i := 0 to aInputLen - 1 do
+    begin
+      if (aInput[i] >= N) and (aInput[i] < M) then
+        M := aInput[i];
+    end;
+
+    if M = High(Cardinal) then
+      Break;
+
+    // Increment delta
+    aDelta := aDelta + (M - N) * (aHandledLen + 1);
+    N := M;
+
+    // Process all characters equal to N
+    for i := 0 to aInputLen - 1 do
+    begin
+      if aInput[i] < N then
+        Inc(aDelta)
+      else if aInput[i] = N then
+      begin
+        Q := aDelta;
+        K := _BASE;
+
+        while True do
+        begin
+          if K <= aBias then
+            T := _TMIN
+          else if K >= aBias + _TMAX then
+            T := _TMAX
+          else
+            T := K - aBias;
+
+          if Q < T then
+            Break;
+
+          aOutput := aOutput + EncodeDigit(T + ((Q - T) mod (_BASE - T)));
+          Q := (Q - T) div (_BASE - T);
+          Inc(K, _BASE);
+        end;
+
+        aOutput := aOutput + EncodeDigit(Q);
+        aBias := Adapt(aDelta, aHandledLen + 1, aHandledLen = aBasicLen);
+        aDelta := 0;
+        Inc(aHandledLen);
+      end;
+    end;
+
+    Inc(aDelta);
+    Inc(N);
+  end;
+
+  Result := aOutput;
+end;
+
+// Main function for decoding from Punycode
+function PunycodeToUTF8(const aPunycodeStr: string): string;
+var
+  aInput: string;
+  aOutput: TUnicodeArray;
+  aInputLen, aOutputLen, aBasicLen: Integer;
+  aBias, N, I, K, aDigit, T, W: Cardinal;
+  aPos, aDelimPos: Integer;
+  aOldI: Cardinal;
+begin
+  // Remove the "xn--" prefix if present
+  if LowerCase(Copy(aPunycodeStr, 1, 4)) = 'xn--' then
+    aInput := Copy(aPunycodeStr, 5, MaxInt)
+  else
+    aInput := aPunycodeStr;
+
+  aInputLen := Length(aInput);
+
+  // Find the last delimiter
+  aDelimPos := 0;
+  for aPos := 1 to aInputLen do
+  begin
+    if aInput[aPos] = _DELIMITER then
+      aDelimPos := aPos;
+  end;
+
+  if aDelimPos > 0 then
+    aBasicLen := aDelimPos - 1
+  else
+    aBasicLen := 0;
+
+  Initialize(aOutput);
+  SetLength(aOutput, aBasicLen);
+  aOutputLen := aBasicLen;
+
+  // Copy basic characters
+  for aPos := 1 to aBasicLen do
+    aOutput[aPos - 1] := Ord(aInput[aPos]);
+
+  N := _INITIAL_N;
+  I := 0;
+  aBias := _INITIAL_BIAS;
+
+  if aDelimPos > 0 then
+    aPos := aDelimPos + 1
+  else
+    aPos := 1;
+
+  while aPos <= aInputLen do
+  begin
+    aOldI := I;
+    W := 1;
+    K := _BASE;
+
+    while aPos <= aInputLen do
+    begin
+      aDigit := DecodeDigit(aInput[aPos]);
+      Inc(aPos);
+
+      if aDigit >= _BASE then
+        Exit(EmptyStr); // Invalid character
+
+      I := I + aDigit * W;
+
+      if K <= aBias then
+        T := _TMIN
+      else if K >= aBias + _TMAX then
+        T := _TMAX
+      else
+        T := K - aBias;
+
+      if aDigit < T then
+        Break;
+
+      W := W * (_BASE - T);
+      Inc(K, _BASE);
+    end;
+
+    aBias := Adapt(I - aOldI, aOutputLen + 1, aOldI = 0);
+    N := N + I div (aOutputLen + 1);
+    I := I mod (aOutputLen + 1);
+
+    SetLength(aOutput, aOutputLen + 1);
+
+    // Prevent out-of-bounds access
+    if I > aOutputLen then
+      I := aOutputLen;
+
+    if I < aOutputLen then
+      Move(aOutput[I], aOutput[I + 1], (aOutputLen - I) * SizeOf(Cardinal));
+
+    aOutput[I] := N;
+
+    Inc(aOutputLen);
+    Inc(I);
+  end;
+
+  Result := UnicodeArrayToUTF8(aOutput);
+end;
+
+end.
