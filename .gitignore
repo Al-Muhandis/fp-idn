@@ -35,8 +35,11 @@ lib/
 # Application bundle for Mac OS
 *.app/
 
-# temporary hide
+
 # Ignore generated benchmark binaries and results
 benchmarks/benchconsole
 benchmarks/benchconsole.exe
 benchmarks/results.csv
+
+benchmarks-dor/
+
