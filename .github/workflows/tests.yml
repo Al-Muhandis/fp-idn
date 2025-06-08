@@ -16,7 +16,7 @@ jobs:
       - name: Install FreePascal and fpc-unit
         run: |
           sudo apt-get update
-          sudo apt-get install -y fp-compiler fpc-unit
+          sudo apt-get install -y fp-compiler
 
       - name: Build tests
         run: |
