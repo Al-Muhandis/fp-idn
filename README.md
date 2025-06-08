@@ -74,6 +74,29 @@ You will see FPCUnit test output with full results in XML and console form.
 
 ---
 
+## Build & Run Benchmarks
+
+The repository also includes simple performance benchmarks for `fppunycode` and `fpidn`.
+They output results to the console and save them to `benchmarks/results.csv`.
+
+### Windows
+
+Run the batch script:
+
+```cmd
+build_benchmarks.bat
+```
+
+### Linux/macOS
+
+Run the shell script:
+
+```bash
+./build_benchmarks.sh
+```
+
+---
+
 ## Requirements
 
 * FreePascal 3.0+ (ensure `fpc` is accessible or set the `FPC` environment variable)
