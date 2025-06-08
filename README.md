@@ -112,6 +112,6 @@ MIT License — free to use in personal and commercial projects.
 
 ## Author
 
-Developed by [@almuhandis](https://github.com/almuhandis)
+Developed by [@al-muhandis](https://github.com/al-muhandis)
 
 Inspired by the need for lightweight, native Punycode support in FreePascal-based applications.
