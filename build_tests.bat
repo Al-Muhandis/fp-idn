@@ -2,9 +2,19 @@
 echo Building tests for fpidn and fppunycode...
 echo.
 
+REM Determine FreePascal compiler
+if "%FPC%"=="" (
+    for /f "delims=" %%i in ('where fpc 2^>nul') do set "FPC=%%i"
+)
+if "%FPC%"=="" (
+    echo ERROR: FreePascal compiler (fpc) not found. Please install FPC and set the FPC environment variable.
+    pause
+    exit /b 1
+)
+
 REM Compile console test application
 echo Compiling the console test application...
-C:\lazarus-4.0\fpc\bin\x86_64-win64\fpc.exe ^
+%FPC% ^
   -Mobjfpc -Scghi -O1 -g -gl -l -vewnhibq ^
   -Fu. -Fu..\ -FUlib\ ^
   tests\testconsole.lpr

@@ -50,6 +50,10 @@ end;
 
 ## Build & Run Tests
 
+Before running the scripts below make sure the FreePascal compiler is installed.
+If it is not available in your `PATH`, set the `FPC` environment variable to the
+full path of the `fpc` executable.
+
 ### Windows
 
 Run the batch script:
@@ -72,7 +76,7 @@ You will see FPCUnit test output with full results in XML and console form.
 
 ## Requirements
 
-* FreePascal 3.0+
+* FreePascal 3.0+ (ensure `fpc` is accessible or set the `FPC` environment variable)
 * Optional: [Lazarus IDE](https://www.lazarus-ide.org/) for integration in GUI-based tools
 
 ---
