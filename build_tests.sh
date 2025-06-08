@@ -13,7 +13,7 @@ fi
 # Compile the console test application
 echo "Compiling the console test application..."
 "$FPC_CMD" -Mobjfpc -Scghi -O1 -g -gl -l -vewnhibq \
-  -Fu. -Fu.. -FUlib/ \
+  -Fu. -Fu.. -FUlib/ -FU../lib/ \
   tests/testconsole.lpr
 
 if [ $? -ne 0 ]; then
