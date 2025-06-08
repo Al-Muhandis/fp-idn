@@ -36,4 +36,7 @@ lib/
 *.app/
 
 # temporary hide
-benchmarks/
+# Ignore generated benchmark binaries and results
+benchmarks/benchconsole
+benchmarks/benchconsole.exe
+benchmarks/results.csv
