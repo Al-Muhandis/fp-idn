@@ -33,3 +33,6 @@ lib/
 
 # Application bundle for Mac OS
 *.app/
+
+# temporary hide
+benchmarks/
