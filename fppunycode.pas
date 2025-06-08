@@ -249,7 +249,7 @@ begin
           Inc(K, _BASE);
         end;
 
-        aOutput := aOutput + EncodeDigit(Q);
+        aOutput += EncodeDigit(Q);
         aBias := Adapt(aDelta, aHandledLen + 1, aHandledLen = aBasicLen);
         aDelta := 0;
         Inc(aHandledLen);
