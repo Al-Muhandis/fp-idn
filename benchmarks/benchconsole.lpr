@@ -78,7 +78,7 @@ begin
   LongPuny := UTF8ToPunycode(LongStr);
 
   Initialize(Results);
-  SetLength(Results, 6);
+  SetLength(Results, 8);
 
   RunBench('UTF8ToPunycode short', 'тест', @UTF8ToPunycode, ITERATIONS, Results[0]);
   RunBench('PunycodeToUTF8 short', 'e1aybc', @PunycodeToUTF8, ITERATIONS, Results[1]);
@@ -86,6 +86,8 @@ begin
   RunBench('PunycodeToUTF8 long', LongPuny, @PunycodeToUTF8, ITERATIONS, Results[3]);
   RunBench('UnicodeToIDN', 'пример.рф', @UnicodeToIDN, ITERATIONS, Results[4]);
   RunBench('IDNToUnicode', 'xn--e1afmkfd.xn--p1ai', @IDNToUnicode, ITERATIONS, Results[5]);
+  RunBench('UnicodeToIDN', 'example.com', @UnicodeToIDN, ITERATIONS, Results[6]);
+  RunBench('IDNToUnicode', 'example.com', @IDNToUnicode, ITERATIONS, Results[7]);
 
   PrintResults(Results);
   SaveCSV('results.csv', Results);
