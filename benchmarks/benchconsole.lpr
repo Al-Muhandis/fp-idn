@@ -48,7 +48,7 @@ begin
   Rewrite(F);
   WriteLn(F, 'Name,Iterations,DurationMs,OpsPerSec');
   for i := 0 to High(Results) do
-    WriteLn(F, Format('"%s",%d,%d,%.2f',
+    WriteLn(F, Format('"%s";%d;%d;%.2f',
       [Results[i].Name, Results[i].Iterations, Results[i].DurationMs, Results[i].OpsPerSec]));
   CloseFile(F);
 end;
@@ -73,7 +73,7 @@ var
   i: Integer;
 begin
   LongStr:=EmptyStr;
-  for i := 1 to 10000 do
+  for i := 1 to 1000 do
     LongStr+='т';
   LongPuny := UTF8ToPunycode(LongStr);
 
