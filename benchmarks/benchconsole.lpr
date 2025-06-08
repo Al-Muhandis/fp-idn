@@ -69,7 +69,7 @@ var
   Results: array of TBenchmark;
   LongStr, LongPuny: string;
 begin
-  LongStr := StringOfChar('т', 1000);
+  LongStr := DupeString('т', 1000);
   LongPuny := UTF8ToPunycode(LongStr);
 
   SetLength(Results, 6);
