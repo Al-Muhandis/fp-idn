@@ -86,8 +86,8 @@ begin
   RunBench('PunycodeToUTF8 long', LongPuny, @PunycodeToUTF8, ITERATIONS, Results[3]);
   RunBench('UnicodeToIDN', 'пример.рф', @UnicodeToIDN, ITERATIONS, Results[4]);
   RunBench('IDNToUnicode', 'xn--e1afmkfd.xn--p1ai', @IDNToUnicode, ITERATIONS, Results[5]);
-  RunBench('UnicodeToIDN', 'example.com', @UnicodeToIDN, ITERATIONS, Results[6]);
-  RunBench('IDNToUnicode', 'example.com', @IDNToUnicode, ITERATIONS, Results[7]);
+  RunBench('UnicodeToIDN ASCII', 'example.com', @UnicodeToIDN, ITERATIONS, Results[6]);
+  RunBench('IDNToUnicode ASCII', 'example.com', @IDNToUnicode, ITERATIONS, Results[7]);
 
   PrintResults(Results);
   SaveCSV('results.csv', Results);

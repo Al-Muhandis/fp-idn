@@ -27,7 +27,7 @@ type
   TUnicodeArray = array of Cardinal;
 
 // Bias adaptation for the next iteration
-function Adapt(aDelta, aNumPoints: Cardinal; aFirstTime: Boolean): Cardinal;
+function Adapt(aDelta, aNumPoints: Cardinal; aFirstTime: Boolean): Cardinal; inline;
 var
   k: Cardinal;
 begin
@@ -36,7 +36,7 @@ begin
   else
     aDelta := aDelta div 2;
 
-  aDelta := aDelta + (aDelta div aNumPoints);
+  aDelta += (aDelta div aNumPoints);
   k := 0;
 
   while aDelta > (((_BASE - _TMIN) * _TMAX) div 2) do
@@ -49,7 +49,7 @@ begin
 end;
 
 // Encode a digit into a character
-function EncodeDigit(aDigit: Cardinal): Char;
+function EncodeDigit(aDigit: Cardinal): Char; inline;
 begin
   if aDigit < 26 then
     Result := Chr(Ord('a') + aDigit)
@@ -58,7 +58,7 @@ begin
 end;
 
 // Decode a character into a digit
-function DecodeDigit(C: Char): Cardinal;
+function DecodeDigit(C: Char): Cardinal; inline;
 begin
   if (C >= 'a') and (C <= 'z') then
     Result := Ord(C) - Ord('a')
@@ -196,10 +196,7 @@ begin
   if (aBasicLen > 0) and (aBasicLen < aInputLen) then
     aOutput += _DELIMITER
   else if (aBasicLen = aInputLen) then
-  begin
-    Result := aOutput;
-    Exit;
-  end;
+    Exit(aOutput);
 
   N := _INITIAL_N;
   aDelta := 0;
@@ -318,7 +315,7 @@ begin
       if aDigit >= _BASE then
         Exit(EmptyStr); // Invalid character
 
-      I := I + aDigit * W;
+      I += aDigit * W;
 
       if K <= aBias then
         T := _TMIN
@@ -330,12 +327,12 @@ begin
       if aDigit < T then
         Break;
 
-      W := W * (_BASE - T);
+      W *= (_BASE - T);
       Inc(K, _BASE);
     end;
 
     aBias := Adapt(I - aOldI, aOutputLen + 1, aOldI = 0);
-    N := N + I div (aOutputLen + 1);
+    N += I div (aOutputLen + 1);
     I := I mod (aOutputLen + 1);
 
     SetLength(aOutput, aOutputLen + 1);

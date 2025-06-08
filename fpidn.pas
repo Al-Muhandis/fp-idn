@@ -27,14 +27,14 @@ var
   aParts, aEncodedParts: TStringArray;
   i: Integer;
 begin
-  Result := '';
+  Result := EmptyStr;
   aParts := aDomain.Split(['.']);
   Initialize(aEncodedParts);
   SetLength(aEncodedParts, Length(aParts));
   for i := 0 to High(aParts) do
   begin
-    if aParts[i] = '' then
-      aEncodedParts[i] := ''
+    if aParts[i] = EmptyStr then
+      aEncodedParts[i] := EmptyStr
     else if IsASCII(aParts[i]) then
       aEncodedParts[i] := aParts[i]
     else
@@ -49,7 +49,7 @@ var
   aParts, aDecodedParts: TStringArray;
   i: Integer;
 begin
-  Result := '';
+  Result := EmptyStr;
   aParts := aDomain.Split(['.']); 
   Initialize(aDecodedParts);
   SetLength(aDecodedParts, Length(aParts));
