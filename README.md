@@ -33,7 +33,7 @@ begin
 end;
 ```
 
-### Convert domain name using IDN module
+### Convert domain name using IDN unit
 
 ```pascal
 uses fpidn;
