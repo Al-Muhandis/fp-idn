@@ -1,0 +1,31 @@
+name: Run FreePascal tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install FreePascal
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fp-compiler
+
+      - name: Build tests
+        run: |
+          chmod +x ./build_tests.sh
+          ./build_tests.sh
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: tests/*.xml
