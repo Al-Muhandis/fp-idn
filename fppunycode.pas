@@ -34,7 +34,7 @@ begin
   if aFirstTime then
     aDelta := aDelta div _DAMP
   else
-    aDelta := aDelta div 2;
+    aDelta := aDelta shr 1;
 
   aDelta += (aDelta div aNumPoints);
   k := 0;
