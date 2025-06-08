@@ -140,24 +140,24 @@ begin
     aCodePoint := UnicodeArray[i];
 
     if aCodePoint < $80 then
-      Result := Result + Chr(aCodePoint)
+      Result += Chr(aCodePoint)
     else if aCodePoint < $800 then
     begin
-      Result := Result + Chr($C0 or (aCodePoint shr 6));
-      Result := Result + Chr($80 or (aCodePoint and $3F));
+      Result += Chr($C0 or (aCodePoint shr 6));
+      Result += Chr($80 or (aCodePoint and $3F));
     end
     else if aCodePoint < $10000 then
     begin
-      Result := Result + Chr($E0 or (aCodePoint shr 12));
-      Result := Result + Chr($80 or ((aCodePoint shr 6) and $3F));
-      Result := Result + Chr($80 or (aCodePoint and $3F));
+      Result += Chr($E0 or (aCodePoint shr 12));
+      Result += Chr($80 or ((aCodePoint shr 6) and $3F));
+      Result += Chr($80 or (aCodePoint and $3F));
     end
     else if aCodePoint < $10FFFF then
     begin
-      Result := Result + Chr($F0 or (aCodePoint shr 18));
-      Result := Result + Chr($80 or ((aCodePoint shr 12) and $3F));
-      Result := Result + Chr($80 or ((aCodePoint shr 6) and $3F));
-      Result := Result + Chr($80 or (aCodePoint and $3F));
+      Result += Chr($F0 or (aCodePoint shr 18));
+      Result += Chr($80 or ((aCodePoint shr 12) and $3F));
+      Result += Chr($80 or ((aCodePoint shr 6) and $3F));
+      Result += Chr($80 or (aCodePoint and $3F));
     end;
   end;
 end;
@@ -185,7 +185,7 @@ begin
   begin
     if aInput[i] < $80 then
     begin
-      aOutput := aOutput + Chr(aInput[i]);
+      aOutput += Chr(aInput[i]);
       Inc(aBasicLen);
     end;
   end;
@@ -194,7 +194,7 @@ begin
 
   // Append delimiter if there are basic characters
   if (aBasicLen > 0) and (aBasicLen < aInputLen) then
-    aOutput := aOutput + _DELIMITER
+    aOutput += _DELIMITER
   else if (aBasicLen = aInputLen) then
   begin
     Result := aOutput;
@@ -219,7 +219,7 @@ begin
       Break;
 
     // Increment delta
-    aDelta := aDelta + (M - N) * (aHandledLen + 1);
+    aDelta += (M - N) * (aHandledLen + 1);
     N := M;
 
     // Process all characters equal to N
@@ -244,7 +244,7 @@ begin
           if Q < T then
             Break;
 
-          aOutput := aOutput + EncodeDigit(T + ((Q - T) mod (_BASE - T)));
+          aOutput += EncodeDigit(T + ((Q - T) mod (_BASE - T)));
           Q := (Q - T) div (_BASE - T);
           Inc(K, _BASE);
         end;
@@ -266,26 +266,19 @@ end;
 // Main function for decoding from Punycode
 function PunycodeToUTF8(const aPunycodeStr: string): string;
 var
-  aInput: string;
   aOutput: TUnicodeArray;
   aInputLen, aOutputLen, aBasicLen: Integer;
   aBias, N, I, K, aDigit, T, W: Cardinal;
   aPos, aDelimPos: Integer;
   aOldI: Cardinal;
 begin
-  // Remove the "xn--" prefix if present
-  if LowerCase(Copy(aPunycodeStr, 1, 4)) = 'xn--' then
-    aInput := Copy(aPunycodeStr, 5, MaxInt)
-  else
-    aInput := aPunycodeStr;
-
-  aInputLen := Length(aInput);
+  aInputLen := Length(aPunycodeStr);
 
   // Find the last delimiter
   aDelimPos := 0;
   for aPos := 1 to aInputLen do
   begin
-    if aInput[aPos] = _DELIMITER then
+    if aPunycodeStr[aPos] = _DELIMITER then
       aDelimPos := aPos;
   end;
 
@@ -300,7 +293,7 @@ begin
 
   // Copy basic characters
   for aPos := 1 to aBasicLen do
-    aOutput[aPos - 1] := Ord(aInput[aPos]);
+    aOutput[aPos - 1] := Ord(aPunycodeStr[aPos]);
 
   N := _INITIAL_N;
   I := 0;
@@ -319,7 +312,7 @@ begin
 
     while aPos <= aInputLen do
     begin
-      aDigit := DecodeDigit(aInput[aPos]);
+      aDigit := DecodeDigit(aPunycodeStr[aPos]);
       Inc(aPos);
 
       if aDigit >= _BASE then
