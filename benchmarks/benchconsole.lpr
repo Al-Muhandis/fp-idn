@@ -3,7 +3,8 @@ program benchconsole;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, fppunycode, fpidn;
+  SysUtils, fppunycode, fpidn
+  ;
 
 type
   TBenchmark = record
@@ -21,6 +22,7 @@ var
   StartT, EndT: QWord;
   Last, Expected: string;
 begin
+  Last:=EmptyStr;
   Expected := Func(Input);
   StartT := GetTickCount64;
   for i := 1 to Iterations do
@@ -68,10 +70,14 @@ const
 var
   Results: array of TBenchmark;
   LongStr, LongPuny: string;
+  i: Integer;
 begin
-  LongStr := DupeString('т', 1000);
+  LongStr:=EmptyStr;
+  for i := 1 to 10000 do
+    LongStr+='т';
   LongPuny := UTF8ToPunycode(LongStr);
 
+  Initialize(Results);
   SetLength(Results, 6);
 
   RunBench('UTF8ToPunycode short', 'тест', @UTF8ToPunycode, ITERATIONS, Results[0]);
@@ -82,5 +88,5 @@ begin
   RunBench('IDNToUnicode', 'xn--e1afmkfd.xn--p1ai', @IDNToUnicode, ITERATIONS, Results[5]);
 
   PrintResults(Results);
-  SaveCSV('benchmarks/results.csv', Results);
+  SaveCSV('results.csv', Results);
 end.
