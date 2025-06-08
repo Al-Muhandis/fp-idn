@@ -56,7 +56,7 @@ begin
   for i := 0 to High(aParts) do
   begin
     if aParts[i].StartsWith('xn--') then
-      aDecodedParts[i] := PunycodeToUTF8(aParts[i])
+      aDecodedParts[i] := PunycodeToUTF8(aParts[i].Remove(0, 4))
     else
       aDecodedParts[i] := aParts[i];
   end;
