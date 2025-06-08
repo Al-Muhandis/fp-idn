@@ -65,7 +65,7 @@ begin
 end;
 
 const
-  ITERATIONS = 10000;
+  ITERATIONS = 100000;
 
 var
   Results: array of TBenchmark;
