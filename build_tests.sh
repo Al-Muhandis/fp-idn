@@ -10,6 +10,10 @@ if [ -z "$FPC_CMD" ] || [ ! -x "$FPC_CMD" ]; then
   exit 1
 fi
 
+# Ensure the output directory exists
+mkdir -p ../lib
+mkdir -p lib
+
 # Compile the console test application
 echo "Compiling the console test application..."
 "$FPC_CMD" -Mobjfpc -Scghi -O1 -g -gl -l -vewnhibq \
