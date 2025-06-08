@@ -1,17 +1,18 @@
 @echo off
+setlocal
 
 echo Building benchmarks...
 
-if "%FPC%"=="" (
+if not defined FPC (
     for /f "delims=" %%i in ('where fpc 2^>nul') do set "FPC=%%i"
 )
-if "%FPC%"=="" (
+if not defined FPC (
     echo ERROR: FreePascal compiler (fpc) not found. Please install FPC and set the FPC environment variable.
     pause
     exit /b 1
 )
 
-%FPC% ^
+"%FPC%" ^
   -Mobjfpc -Scghi -O1 -g -gl -l -vewnhibq ^
   -Fu. -FUlib\ ^
   benchmarks\benchconsole.lpr
