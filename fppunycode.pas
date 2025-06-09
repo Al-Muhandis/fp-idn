@@ -13,6 +13,10 @@ function PunycodeToUTF8(const aPunycodeStr: string): string;
 
 implementation
 
+uses
+  StrUtils
+  ;
+
 const
   _BASE = 36;
   _TMIN = 1;
@@ -272,12 +276,7 @@ begin
   aInputLen := Length(aPunycodeStr);
 
   // Find the last delimiter
-  aDelimPos := 0;
-  for aPos := 1 to aInputLen do
-  begin
-    if aPunycodeStr[aPos] = _DELIMITER then
-      aDelimPos := aPos;
-  end;
+  aDelimPos:=RPos(_DELIMITER, aPunycodeStr);
 
   if aDelimPos > 0 then
     aBasicLen := aDelimPos - 1
