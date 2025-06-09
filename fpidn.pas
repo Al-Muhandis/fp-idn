@@ -24,12 +24,12 @@ end;
 
 function UnicodeToIDN(const aDomain: string): string;
 var
-  aParts, aEncodedParts: TStringArray;
+  aParts: TStringArray;
+  aEncodedParts: TStringArray = ();
   i: Integer;
 begin
   Result := EmptyStr;
   aParts := aDomain.Split(['.']);
-  Initialize(aEncodedParts);
   SetLength(aEncodedParts, Length(aParts));
   for i := 0 to High(aParts) do
   begin
@@ -46,12 +46,11 @@ end;
 
 function IDNToUnicode(const aDomain: string): string;
 var
-  aParts, aDecodedParts: TStringArray;
+  aParts: TStringArray;
+  aDecodedParts: TStringArray = ();
   i: Integer;
 begin
-  Result := EmptyStr;
-  aParts := aDomain.Split(['.']); 
-  Initialize(aDecodedParts);
+  aParts := aDomain.Split(['.']);
   SetLength(aDecodedParts, Length(aParts));
   for i := 0 to High(aParts) do
   begin
@@ -61,7 +60,7 @@ begin
       aDecodedParts[i] := aParts[i];
   end;
 
-  Result := Result.Join('.', aDecodedParts);
+  Result := aDomain.Join('.', aDecodedParts);
 end;
 
 end.
