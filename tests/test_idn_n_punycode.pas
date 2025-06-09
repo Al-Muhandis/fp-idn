@@ -276,14 +276,17 @@ end;
 procedure TTestIDN.TestSubdomains;
 begin
   AssertEquals('Subdomain with IDN', 'mail.xn--80a1acny', UnicodeToIDN('mail.почта'));
-  AssertEquals('Subdomain Unicode', 'mail.онлайн', IDNToUnicode('mail.xn--80asehdb'));
+  AssertEquals('Subdomain with IDN', 'xn--123-9cdpg2cjg1aw.123.xn--d1aad1agbce.xn--e1afmkfd.xn--p1acf',
+    UnicodeToIDN('субдомен123.123.поддомен.пример.рус'));
+  AssertEquals('Subdomain Unicode', 'mail.онлайн', IDNToUnicode('mail.xn--80asehdb'));            
+  AssertEquals('Subdomain Unicode', 'субдомен123.123.поддомен.пример.рус',
+    IDNToUnicode('xn--123-9cdpg2cjg1aw.123.xn--d1aad1agbce.xn--e1afmkfd.xn--p1acf'));
 end;
 
 procedure TTestIDN.TestRealDomain;
 begin
   AssertEquals('Real .org domain', 'xn--d1acufc.xn--p1ai', UnicodeToIDN('домен.рф'));
-  AssertEquals('Real .org domain decoded',
-               'домен.рф', IDNToUnicode('xn--d1acufc.xn--p1ai'));
+  AssertEquals('Real .org domain decoded', 'домен.рф', IDNToUnicode('xn--d1acufc.xn--p1ai'));
 end;
 
 procedure TTestIDN.TestEmptyInput;
