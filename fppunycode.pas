@@ -39,16 +39,13 @@ begin
     aDelta := aDelta div _DAMP
   else
     aDelta := aDelta shr 1;
-
   aDelta += (aDelta div aNumPoints);
   k := 0;
-
   while aDelta > (((_BASE - _TMIN) * _TMAX) div 2) do
   begin
     aDelta := aDelta div (_BASE - _TMIN);
     Inc(k, _BASE);
   end;
-
   Result := k + (((_BASE - _TMIN + 1) * aDelta) div (aDelta + _SKEW));
 end;
 
@@ -64,15 +61,14 @@ end;
 // Decode a character into a digit
 function DecodeDigit(C: Char): Cardinal; inline;
 begin
-  if (C >= 'a') and (C <= 'z') then
-    Result := Ord(C) - Ord('a')
-  else if (C >= 'A') and (C <= 'Z') then
-    Result := Ord(C) - Ord('A')
-  else if (C >= '0') and (C <= '9') then
-    Result := Ord(C) - Ord('0') + 26
-  else
-    Result := _BASE; // Error
+  case C of
+    'a'..'z': Result := Ord(C) - Ord('a');
+    'A'..'Z': Result := Ord(C) - Ord('A');
+    '0'..'9': Result := Ord(C) - Ord('0') + 26;
+    else      Result := _BASE; // Error
+  end;
 end;
+
 
 // Convert a UTF-8 string into an array of Unicode code points
 function UTF8ToUnicodeArray(const aUTF8Str: string): TUnicodeArray;
