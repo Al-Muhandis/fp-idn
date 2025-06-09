@@ -69,62 +69,72 @@ begin
   end;
 end;
 
-
 // Convert a UTF-8 string into an array of Unicode code points
 function UTF8ToUnicodeArray(const aUTF8Str: string): TUnicodeArray;
 var
-  i, aLen: Integer;
+  i, aPos: Integer;
   aCodePoint: Cardinal;
   aByteCount: Integer;
 begin
   Initialize(Result);
-  SetLength(Result, 0);
+  SetLength(Result, Length(aUTF8Str));
+  aPos := 0;
   i := 1;
 
   while i <= Length(aUTF8Str) do
   begin
     // Determine the number of bytes in the UTF-8 character
-    if Ord(aUTF8Str[i]) < $80 then
-    begin
-      aCodePoint := Ord(aUTF8Str[i]);
-      aByteCount := 1;
-    end
-    else if (Ord(aUTF8Str[i]) and $E0) = $C0 then
-    begin
-      aCodePoint := Ord(aUTF8Str[i]) and $1F;
-      aByteCount := 2;
-    end
-    else if (Ord(aUTF8Str[i]) and $F0) = $E0 then
-    begin
-      aCodePoint := Ord(aUTF8Str[i]) and $0F;
-      aByteCount := 3;
-    end
-    else if (Ord(aUTF8Str[i]) and $F8) = $F0 then
-    begin
-      aCodePoint := Ord(aUTF8Str[i]) and $07;
-      aByteCount := 4;
-    end
-    else
-    begin
-      // Skip unknown byte
-      Inc(i);
-      Continue;
+    case Ord(aUTF8Str[i]) of
+      $00..$7F: // 1-byte sequence (ASCII)
+        begin
+          aCodePoint := Ord(aUTF8Str[i]);
+          aByteCount := 1;
+        end;
+      $C0..$DF: // 2-byte sequence
+        begin
+          aCodePoint := Ord(aUTF8Str[i]) and $1F;
+          aByteCount := 2;
+        end;
+      $E0..$EF: // 3-byte sequence
+        begin
+          aCodePoint := Ord(aUTF8Str[i]) and $0F;
+          aByteCount := 3;
+        end;
+      $F0..$F7: // 4-byte sequence
+        begin
+          aCodePoint := Ord(aUTF8Str[i]) and $07;
+          aByteCount := 4;
+        end;
+      else // Skip unknown byte
+        begin
+          Inc(i);
+          Continue;
+        end;
     end;
 
-    // Read remaining bytes (simplified)
+    if (i + aByteCount - 1) > Length(aUTF8Str) then
+      Break;
+
     Inc(i);
     while (aByteCount > 1) and (i <= Length(aUTF8Str)) do
     begin
+      if (Ord(aUTF8Str[i]) and $C0) <> $80 then
+        Break;
+
       aCodePoint := (aCodePoint shl 6) or (Ord(aUTF8Str[i]) and $3F);
       Inc(i);
       Dec(aByteCount);
     end;
 
     // Append code point to array
-    aLen := Length(Result);
-    SetLength(Result, aLen + 1);
-    Result[aLen] := aCodePoint;
+    if aPos < Length(Result) then
+    begin
+      Result[aPos] := aCodePoint;
+      Inc(aPos);
+    end;
   end;
+
+  SetLength(Result, aPos);
 end;
 
 // Convert an array of Unicode code points into a UTF-8 string
