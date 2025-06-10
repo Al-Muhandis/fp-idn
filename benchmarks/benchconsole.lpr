@@ -46,7 +46,7 @@ var
 begin
   AssignFile(F, FileName);
   Rewrite(F);
-  WriteLn(F, 'Name,Iterations,DurationMs,OpsPerSec');
+  WriteLn(F, 'Name;Iterations;DurationMs;OpsPerSec');
   for i := 0 to High(Results) do
     WriteLn(F, Format('"%s";%d;%d;%.2f',
       [Results[i].Name, Results[i].Iterations, Results[i].DurationMs, Results[i].OpsPerSec]));
