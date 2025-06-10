@@ -137,29 +137,62 @@ begin
   SetLength(Result, aPos);
 end;
 
-// Convert an array of Unicode code points into a UTF-8 string
-function UnicodeArrayToUTF8(const UnicodeArray: TUnicodeArray): string;
-var
-  i: Integer;
-  aCodePoint: Cardinal;
+function UnicodeToUTF8Char(U: Cardinal; Dest: PByte): Integer; inline;
 begin
-  Result := EmptyStr;
-
-  for i := 0 to Length(UnicodeArray) - 1 do
+  if U <= $7F then
   begin
-    aCodePoint := UnicodeArray[i];
+    Dest^ := U;
+    Result := 1;
+  end
+  else if U <= $7FF then
+  begin
+    Dest^ := $C0 or (U shr 6);
+    Inc(Dest);
+    Dest^ := $80 or (U and $3F);
+    Result := 2;
+  end
+  else if U <= $FFFF then
+  begin
+    Dest^ := $E0 or (U shr 12);
+    Inc(Dest);
+    Dest^ := $80 or ((U shr 6) and $3F);
+    Inc(Dest);
+    Dest^ := $80 or (U and $3F);
+    Result := 3;
+  end
+  else if U <= $10FFFF then
+  begin
+    Dest^ := $F0 or (U shr 18);
+    Inc(Dest);
+    Dest^ := $80 or ((U shr 12) and $3F);
+    Inc(Dest);
+    Dest^ := $80 or ((U shr 6) and $3F);
+    Inc(Dest);
+    Dest^ := $80 or (U and $3F);
+    Result := 4;
+  end
+  else
+    Result := 0; // Invalid character
+end;
 
-    if aCodePoint < $80 then
-      Result += Chr(aCodePoint)
-    else if aCodePoint < $800 then
-      Result += Chr($C0 or (aCodePoint shr 6)) + Chr($80 or (aCodePoint and $3F))
-    else if aCodePoint < $10000 then
-      Result += Chr($E0 or (aCodePoint shr 12)) + Chr($80 or ((aCodePoint shr 6) and $3F))
-        + Chr($80 or (aCodePoint and $3F))
-    else if aCodePoint < $10FFFF then
-      Result += Chr($F0 or (aCodePoint shr 18)) + Chr($80 or ((aCodePoint shr 12) and $3F))
-        + Chr($80 or ((aCodePoint shr 6) and $3F)) + Chr($80 or (aCodePoint and $3F));
-  end;
+// Convert an array of Unicode code points into a UTF-8 string
+function UnicodeArrayToUTF8(const UnicodeArray: TUnicodeArray): String;
+var
+  MaxLen, ActualLen, i: Integer;
+  pDest: PByte;
+begin
+  // Maximum possible length: each character is up to 4 bytes (UTF-8 can encode surrogates)
+  MaxLen := Length(UnicodeArray) * 4;
+  SetLength(Result, MaxLen);
+  if MaxLen = 0 then Exit;
+
+  pDest := @Result[1];
+  ActualLen := 0;
+
+  for i := 0 to High(UnicodeArray) do
+    Inc(ActualLen, UnicodeToUTF8Char(UnicodeArray[i], pDest + ActualLen));
+
+  SetLength(Result, ActualLen);
 end;
 
 // Main function for encoding into Punycode
