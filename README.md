@@ -1,6 +1,6 @@
 # fp-idn
 
-**fp-idn** is a lightweight Pascal library for encoding and decoding Internationalized Domain Names (IDN) using the [Punycode](https://datatracker.ietf.org/doc/html/rfc3492) algorithm. Designed to be compatible with FreePascal and Lazarus projects, including console tools and server-side utilities.
+**fp-idn** is a lightweight Pascal library for encoding and decoding Internationalized Domain Names (IDN) using the [Punycode](https://datatracker.ietf.org/doc/html/rfc3492) algorithm. Designed to be compatible with FreePascal and Lazarus projects.
 
 ## Features
 
@@ -15,7 +15,7 @@
 
 * `fppunycode.pas`: Core Punycode encode/decode functions
 * `fpidn.pas`: Domain-level IDN wrapper functions (`IDNToUnicode`, `UnicodeToIDN`)
-* `test_idn_n_punycode.pas`: Unit tests for both modules
+* `test_idn_n_punycode.pas`: Unit tests for both units
 
 ---
 
