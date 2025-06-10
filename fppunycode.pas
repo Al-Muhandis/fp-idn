@@ -273,7 +273,7 @@ end;
 // Main function for decoding from Punycode
 function PunycodeToUTF8(const aPunycodeStr: string): string;
 var
-  aOutput: TUnicodeArray;
+  aOutput: TUnicodeArray = ();
   aInputLen, aOutputLen, aBasicLen: Integer;
   aBias, N, I, K, aDigit, T, W: Cardinal;
   aPos, aDelimPos: Integer;
@@ -289,7 +289,6 @@ begin
   else
     aBasicLen := 0;
 
-  Initialize(aOutput);
   SetLength(aOutput, aBasicLen);
   aOutputLen := aBasicLen;
 
