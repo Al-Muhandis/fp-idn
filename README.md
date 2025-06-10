@@ -11,11 +11,12 @@
 
 ---
 
-## Modules
+## Units
 
 * `fppunycode.pas`: Core Punycode encode/decode functions
 * `fpidn.pas`: Domain-level IDN wrapper functions (`IDNToUnicode`, `UnicodeToIDN`)
 * `test_idn_n_punycode.pas`: Unit tests for both units
+* `test_idn_n_punycode_property.pas`: Property-based tests
 
 ---
 
@@ -29,7 +30,7 @@ uses fppunycode;
 var
   puny: string;
 begin
-  puny := UTF8ToPunycode('пример');
+  puny := UTF8ToPunycode('тест'); // -> b1abfaa5a0a
 end;
 ```
 
