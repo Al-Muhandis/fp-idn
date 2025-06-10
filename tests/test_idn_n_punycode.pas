@@ -32,7 +32,8 @@ type
     procedure TestCaseInsensitive;
     // Error handling tests
     procedure TestInvalidPunycode;
-    procedure TestCorruptedData;
+    procedure TestCorruptedData;  
+    procedure TestOutOfBoundsAndCorruptedData;
     // Performance tests
     procedure TestLargeData;
     // Real-world domain examples
@@ -194,7 +195,8 @@ var
   aInvalidResult: string;
 begin
   // Invalid punycode string test
-  aInvalidResult := PunycodeToUTF8('invalid-punycode-string');
+  aInvalidResult := PunycodeToUTF8('invalid-punycode-string');  
+  aInvalidResult := PunycodeToUTF8('invalid');
   // The main point is the function should not raise exceptions
   AssertTrue('The function must execute without errors', aInvalidResult <> EmptyStr);
 end;
@@ -204,8 +206,8 @@ var
   {%H-}Result1, {%H-}Result2: string;
 begin
   // Corrupted data test
-  Result1 := PunycodeToUTF8('xn--');
-  Result2 := PunycodeToUTF8('xn--invalid');
+  Result1 := PunycodeToUTF8('');
+  Result2 := PunycodeToUTF8('invalid');
 
   // should not raise exceptions
   AssertTrue('Correpted data processed', True);
@@ -245,6 +247,25 @@ end;
 procedure TTestPunycode.TestDeterministicEncoding;
 begin
   AssertEquals('Deterministic encoding', UTF8ToPunycode('пример'), UTF8ToPunycode('пример'));
+end;
+
+procedure TTestPunycode.TestOutOfBoundsAndCorruptedData;
+var
+  puny: string;
+begin
+  // Invalid punycode-strings
+  AssertEquals('', PunycodeToUTF8('ex ample')); // whitespace forbidden
+  puny:=PunycodeToUTF8(
+      'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz'
+    );
+  AssertEquals('', PunycodeToUTF8('%')); // forbidden character
+  AssertEquals('', PunycodeToUTF8('\x01\x02test'));     // Control chars
+  AssertEquals('', PunycodeToUTF8('!@#$%^&*()'));       // Symbols only
+  AssertEquals('', PunycodeToUTF8('%%%%%'));                // Total garbage
+
+  // Checking for out-of-bounds: a very long string of garbage
+  puny := StringOfChar('a', 5000);
+  puny := PunycodeToUTF8(puny);
 end;
 
 { TTestIDN }
