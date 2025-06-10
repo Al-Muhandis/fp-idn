@@ -152,23 +152,13 @@ begin
     if aCodePoint < $80 then
       Result += Chr(aCodePoint)
     else if aCodePoint < $800 then
-    begin
-      Result += Chr($C0 or (aCodePoint shr 6));
-      Result += Chr($80 or (aCodePoint and $3F));
-    end
+      Result += Chr($C0 or (aCodePoint shr 6)) + Chr($80 or (aCodePoint and $3F))
     else if aCodePoint < $10000 then
-    begin
-      Result += Chr($E0 or (aCodePoint shr 12));
-      Result += Chr($80 or ((aCodePoint shr 6) and $3F));
-      Result += Chr($80 or (aCodePoint and $3F));
-    end
+      Result += Chr($E0 or (aCodePoint shr 12)) + Chr($80 or ((aCodePoint shr 6) and $3F))
+        + Chr($80 or (aCodePoint and $3F))
     else if aCodePoint < $10FFFF then
-    begin
-      Result += Chr($F0 or (aCodePoint shr 18));
-      Result += Chr($80 or ((aCodePoint shr 12) and $3F));
-      Result += Chr($80 or ((aCodePoint shr 6) and $3F));
-      Result += Chr($80 or (aCodePoint and $3F));
-    end;
+      Result += Chr($F0 or (aCodePoint shr 18)) + Chr($80 or ((aCodePoint shr 12) and $3F))
+        + Chr($80 or ((aCodePoint shr 6) and $3F)) + Chr($80 or (aCodePoint and $3F));
   end;
 end;
 
