@@ -5,7 +5,7 @@ unit fppunycode;
 interface
 
 uses
-  SysUtils, Classes
+  SysUtils, Classes, Math
   ;
 
 function UTF8ToPunycode(const UTF8Str: string): string;
@@ -35,6 +35,7 @@ function Adapt(aDelta, aNumPoints: Cardinal; aFirstTime: Boolean): Cardinal; inl
 var
   k: Cardinal;
 begin
+  if aDelta=0 then Exit(0);
   if aFirstTime then
     aDelta := aDelta div _DAMP
   else
@@ -183,6 +184,7 @@ var
 begin
   // Maximum possible length: each character is up to 4 bytes (UTF-8 can encode surrogates)
   MaxLen := Length(UnicodeArray) * 4;
+  Initialize(Result);
   SetLength(Result, MaxLen);
   if MaxLen = 0 then Exit;
 
@@ -301,6 +303,7 @@ var
   aBias, N, I, K, aDigit, T, W: Cardinal;
   aPos, aDelimPos: Integer;
   aOldI: Cardinal;
+  D: Cardinal = 0;
 begin
   aInputLen := Length(aPunycodeStr);
 
@@ -359,10 +362,10 @@ begin
     end;
 
     aBias := Adapt(I - aOldI, aOutputLen + 1, aOldI = 0);
-    N += I div (aOutputLen + 1);
-    I := I mod (aOutputLen + 1);
+    DivMod(I, aOutputLen + 1, D, I);
+    N += D;
 
-    SetLength(aOutput, aOutputLen + 1);
+    if aOutputLen >= High(aOutput) then SetLength(aOutput, Round(aOutputLen*1.33)+1);
 
     // Prevent out-of-bounds access
     if I > aOutputLen then
@@ -377,6 +380,7 @@ begin
     Inc(I);
   end;
 
+  SetLength(aOutput, aOutputLen);
   Result := UnicodeArrayToUTF8(aOutput);
 end;
 

@@ -1,0 +1,54 @@
+ fppunycode.pas | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/fppunycode.pas b/fppunycode.pas
+index 1432f95..49c10aa 100644
+--- a/fppunycode.pas
++++ b/fppunycode.pas
+@@ -5,7 +5,7 @@ unit fppunycode;
+ interface
+ 
+ uses
+-  SysUtils, Classes
++  SysUtils, Classes, Math
+   ;
+ 
+ function UTF8ToPunycode(const UTF8Str: string): string;
+@@ -35,6 +35,7 @@ function Adapt(aDelta, aNumPoints: Cardinal; aFirstTime: Boolean): Cardinal; inl
+ var
+   k: Cardinal;
+ begin
++  if aDelta=0 then Exit(0);
+   if aFirstTime then
+     aDelta := aDelta div _DAMP
+   else
+@@ -301,6 +302,7 @@ var
+   aBias, N, I, K, aDigit, T, W: Cardinal;
+   aPos, aDelimPos: Integer;
+   aOldI: Cardinal;
++  D: Cardinal;
+ begin
+   aInputLen := Length(aPunycodeStr);
+ 
+@@ -359,10 +361,10 @@ begin
+     end;
+ 
+     aBias := Adapt(I - aOldI, aOutputLen + 1, aOldI = 0);
+-    N += I div (aOutputLen + 1);
+-    I := I mod (aOutputLen + 1);
++    DivMod(I, aOutputLen + 1, D, I);
++    N += D;
+ 
+-    SetLength(aOutput, aOutputLen + 1);
++    if aOutputLen >= High(aOutput) then SetLength(aOutput, Round(aOutputLen*1.33)+1);
+ 
+     // Prevent out-of-bounds access
+     if I > aOutputLen then
+@@ -377,6 +379,7 @@ begin
+     Inc(I);
+   end;
+ 
++  SetLength(aOutput, aOutputLen);
+   Result := UnicodeArrayToUTF8(aOutput);
+ end;
+ 
