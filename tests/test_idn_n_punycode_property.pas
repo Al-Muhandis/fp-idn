@@ -20,7 +20,7 @@ implementation
 function RandomUnicodeString(ALength: Integer): string;
 var
   i: Integer;
-  c: Cardinal;
+  c: Cardinal = 0;
 begin
   Result := '';
   for i := 1 to ALength do
