@@ -9,7 +9,7 @@ if [ -z "$FPC_CMD" ] || [ ! -x "$FPC_CMD" ]; then
   exit 1
 fi
 
- Ensure the output directory exists
+# Ensure the output directory exists
 mkdir -p ../lib
 mkdir -p lib
 
