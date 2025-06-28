@@ -98,10 +98,20 @@ Run the shell script:
 
 ---
 
+## Example Project
+
+A simple console demo using the runtime package is available in
+`examples/demo_console`. Open `demo_console.lpi` in Lazarus (or run
+`lazbuild` on the file) to build it. The program prints a couple of
+IDN conversions to the terminal.
+
+---
+
 ## Requirements
 
 * FreePascal 3.0+ (ensure `fpc` is accessible or set the `FPC` environment variable)
 * Optional: [Lazarus IDE](https://www.lazarus-ide.org/) for integration in GUI-based tools
+* Runtime-only Lazarus package `fp-idn.lpk` included
 
 ---
 

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Package Version="5">
+    <PathDelim Value="/"/>
+    <Name Value="fp-idn"/>
+    <Type Value="RunTimeOnly"/>
+    <CompilerOptions>
+      <Version Value="11"/>
+      <PathDelim Value="/"/>
+      <SearchPaths>
+        <OtherUnitFiles Value="."/>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+      </SearchPaths>
+    </CompilerOptions>
+    <Files Count="2">
+      <Item>
+        <Filename Value="fpidn.pas"/>
+        <UnitName Value="fpidn"/>
+      </Item>
+      <Item>
+        <Filename Value="fppunycode.pas"/>
+        <UnitName Value="fppunycode"/>
+      </Item>
+    </Files>
+    <RequiredPackages Count="0"/>
+  </Package>
+</CONFIG>
