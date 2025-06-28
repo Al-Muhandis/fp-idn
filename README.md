@@ -111,7 +111,7 @@ IDN conversions to the terminal.
 
 * FreePascal 3.0+ (ensure `fpc` is accessible or set the `FPC` environment variable)
 * Optional: [Lazarus IDE](https://www.lazarus-ide.org/) for integration in GUI-based tools
-* Runtime-only Lazarus package `fp-idn.lpk` included
+* Runtime-only Lazarus package `fpidn_rt.lpk` included
 
 ---
 

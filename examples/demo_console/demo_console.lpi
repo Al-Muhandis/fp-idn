@@ -85,7 +85,7 @@
     </RunParams>
     <RequiredPackages>
       <Item>
-        <PackageName Value="fp-idn"/>
+        <PackageName Value="fpidn_rt"/>
       </Item>
       <Item>
         <PackageName Value="FCL"/>

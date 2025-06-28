@@ -2,7 +2,7 @@
 <CONFIG>
   <Package Version="5">
     <PathDelim Value="/"/>
-    <Name Value="fp-idn"/>
+    <Name Value="fpidn_rt"/>
     <Type Value="RunTimeOnly"/>
     <CompilerOptions>
       <Version Value="11"/>
