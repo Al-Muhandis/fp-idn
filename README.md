@@ -17,6 +17,7 @@
 * `fpidn.pas`: Domain-level IDN wrapper functions (`IDNToUnicode`, `UnicodeToIDN`)
 * `test_idn_n_punycode.pas`: Unit tests for both units
 * `test_idn_n_punycode_property.pas`: Property-based tests
+* `fpidn_rt.lpk`: Lazarus run-time package bundling the IDN units
 
 ---
 
@@ -45,6 +46,16 @@ begin
   encoded := UnicodeToIDN('пример.рф');
   decoded := IDNToUnicode(encoded);
 end;
+```
+
+### Demo console application
+
+A small console demonstration is located in `examples/demo_console`. Open the
+`demo_console.lpi` project in Lazarus or build it with `lazbuild`:
+
+```bash
+lazbuild examples/demo_console/demo_console.lpi
+./demo_console
 ```
 
 ---
