@@ -184,7 +184,7 @@ var
 begin
   // Maximum possible length: each character is up to 4 bytes (UTF-8 can encode surrogates)
   MaxLen := Length(UnicodeArray) * 4;
-  Initialize(Result);
+  //Initialize(Result);
   SetLength(Result, MaxLen);
   if MaxLen = 0 then Exit;
 
