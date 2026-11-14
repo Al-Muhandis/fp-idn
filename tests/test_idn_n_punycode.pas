@@ -37,6 +37,8 @@ type
     // Strict input validation (Stage 2): invalid input never becomes garbage
     procedure TestStrictUTF8Encode;
     procedure TestStrictPunycodeDecode;
+    // Try* error contract (Stage 3): True on success, False + EmptyStr on error
+    procedure TestTryPunycodeContract;
     // Reference vectors verified against Python's punycode codec
     procedure TestReferenceVectors;
     // Stress vector for encoder overflow (enabled in Stage 1)
@@ -61,6 +63,8 @@ type
     procedure TestSubdomains;
     procedure TestRealDomain;
     procedure TestEmptyInput;
+    // Try* error contract (Stage 3): True on success, False + EmptyStr on error
+    procedure TestTryIDNContract;
     // xn-- prefix handling (strict assertions enabled in Stage 4)
     procedure TestXnPrefixCaseInsensitive;
     procedure TestFailedLabelKept;
@@ -376,6 +380,53 @@ begin
     #$CE#$A9#$CE#$AF#$CE#$B8#$CE#$B7#$CE#$B4, PunycodeToUTF8('example'));
 end;
 
+procedure TTestPunycode.TestTryPunycodeContract;
+var
+  aOut: string;
+begin
+  // Stage 3: the Try* pair is the primary API — True on success with the
+  // output filled, False on invalid input with the output guaranteed
+  // empty. An empty input is a success with an empty result, not an error.
+
+  // Positive: reference vectors of Stage 0, both directions
+  AssertTrue('Encode ''тест'' succeeds', TryUTF8ToPunycode('тест', aOut));
+  AssertEquals('Encode ''тест'' result', 'e1aybc', aOut);
+  AssertTrue('Decode ''e1aybc'' succeeds', TryPunycodeToUTF8('e1aybc', aOut));
+  AssertEquals('Decode ''e1aybc'' result', 'тест', aOut);
+  AssertTrue('Encode ''münchen'' succeeds', TryUTF8ToPunycode('münchen', aOut));
+  AssertEquals('Encode ''münchen'' result', 'mnchen-3ya', aOut);
+  AssertTrue('Decode ''mnchen-3ya'' succeeds', TryPunycodeToUTF8('mnchen-3ya', aOut));
+  AssertEquals('Decode ''mnchen-3ya'' result', 'münchen', aOut);
+
+  // Positive: empty input is a success with an empty result
+  AssertTrue('Empty encode succeeds', TryUTF8ToPunycode(EmptyStr, aOut));
+  AssertEquals('Empty encode result', EmptyStr, aOut);
+  AssertTrue('Empty decode succeeds', TryPunycodeToUTF8(EmptyStr, aOut));
+  AssertEquals('Empty decode result', EmptyStr, aOut);
+
+  // Negative: the Stage 2 invalid-UTF-8 set (encode side)
+  AssertFalse('Malformed UTF-8 fails', TryUTF8ToPunycode(#$C3'AB', aOut));
+  AssertEquals('Failed encode leaves output empty', EmptyStr, aOut);
+  AssertFalse('Invalid lead byte fails',
+    TryUTF8ToPunycode('a' + #$F8#$80#$80#$80#$80 + 'b', aOut));
+  AssertEquals('Failed encode leaves output empty (2)', EmptyStr, aOut);
+
+  // Negative: the Stage 2 invalid-punycode set (decode side)
+  AssertFalse('Non-ASCII byte in basic part fails',
+    TryPunycodeToUTF8('x' + #$C3#$A4 + '-aa', aOut));
+  AssertEquals('Failed decode leaves output empty', EmptyStr, aOut);
+  AssertFalse('Forbidden character fails', TryPunycodeToUTF8('ab%cd', aOut));
+  AssertFalse('Truncated digit group fails',
+    TryPunycodeToUTF8(StringOfChar('z', 20), aOut));
+  AssertFalse('Overflow fails', TryPunycodeToUTF8(StringOfChar('9', 20), aOut));
+  AssertEquals('Failed decode leaves output empty (2)', EmptyStr, aOut);
+
+  // Conforming-but-odd inputs remain successes, not errors
+  AssertTrue('Conforming decode of ''invalid'' is a success',
+    TryPunycodeToUTF8('invalid', aOut));
+  AssertEquals('Conforming decode result', DecodedInvalid, aOut);
+end;
+
 { TTestIDN }
 
 procedure TTestIDN.TestPureASCII;
@@ -422,6 +473,42 @@ procedure TTestIDN.TestEmptyInput;
 begin
   AssertEquals('Empty input to IDN', '', UnicodeToIDN(''));
   AssertEquals('Empty input from IDN', '', IDNToUnicode(''));
+end;
+
+procedure TTestIDN.TestTryIDNContract;
+var
+  aOut: string;
+begin
+  // Stage 3: the Try* pair of the IDN layer — True on success with the
+  // output filled, False on invalid input with the output guaranteed empty
+
+  // Positive: the Stage 0 vectors through the domain layer
+  AssertTrue('Encode пример.рф succeeds', TryUnicodeToIDN('пример.рф', aOut));
+  AssertEquals('Encode пример.рф result', 'xn--e1afmkfd.xn--p1ai', aOut);
+  AssertTrue('Decode xn--e1afmkfd.xn--p1ai succeeds',
+    TryIDNToUnicode('xn--e1afmkfd.xn--p1ai', aOut));
+  AssertEquals('Decode xn--e1afmkfd.xn--p1ai result', 'пример.рф', aOut);
+  AssertTrue('Encode münchen.com succeeds', TryUnicodeToIDN('münchen.com', aOut));
+  AssertEquals('Encode münchen.com result', 'xn--mnchen-3ya.com', aOut);
+  AssertTrue('Pure ASCII passes', TryUnicodeToIDN('example.com', aOut));
+  AssertEquals('Pure ASCII result', 'example.com', aOut);
+
+  // Positive: empty domain is a success with an empty result
+  AssertTrue('Empty domain encode succeeds', TryUnicodeToIDN(EmptyStr, aOut));
+  AssertEquals('Empty domain encode result', EmptyStr, aOut);
+  AssertTrue('Empty domain decode succeeds', TryIDNToUnicode(EmptyStr, aOut));
+  AssertEquals('Empty domain decode result', EmptyStr, aOut);
+
+  // Negative: a non-ASCII label that cannot be encoded fails the whole
+  // domain instead of emitting a broken 'xn--' label
+  AssertFalse('Malformed UTF-8 label fails',
+    TryUnicodeToIDN(#$C3'AB' + '.com', aOut));
+  AssertEquals('Failed encode leaves output empty', EmptyStr, aOut);
+
+  // Negative: an xn-- label that cannot be decoded fails the whole domain
+  // instead of silently dropping the label
+  AssertFalse('Undecodable xn-- label fails', TryIDNToUnicode('test.xn--!!', aOut));
+  AssertEquals('Failed decode leaves output empty', EmptyStr, aOut);
 end;
 
 procedure TTestIDN.TestXnPrefixCaseInsensitive;

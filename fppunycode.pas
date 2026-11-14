@@ -8,6 +8,29 @@ uses
   SysUtils, Classes
   ;
 
+{ Punycode converter per RFC 3492.
+
+  Error contract (Stage 3): the Try* functions are the primary API. They
+  return True on success with the output parameter filled, and False on
+  invalid input with the output parameter guaranteed to be EmptyStr. An
+  empty input string is a success with an empty result, not an error.
+
+  The plain functions (UTF8ToPunycode, PunycodeToUTF8) are compatibility
+  wrappers around the Try* pair: on any failure they return EmptyStr, so
+  an empty result means "either an empty input or an error" - use the
+  Try* variants to tell these cases apart.
+
+  The input of UTF8ToPunycode / TryUTF8ToPunycode must be well-formed
+  UTF-8 (RFC 3629). Encode failure reasons: malformed UTF-8 (invalid lead
+  byte, truncated sequence, missing continuation byte, overlong encoding,
+  UTF-16 surrogate, code point above U+10FFFF) and RFC 3492 section 6.4
+  arithmetic overflow. Decode failure reasons: a non-ASCII byte in the
+  basic part, a character outside the punycode alphabet, a digit group
+  truncated by the end of input, arithmetic overflow, a decoded code point
+  above U+10FFFF. }
+
+function TryUTF8ToPunycode(const UTF8Str: string; out Puny: string): Boolean;
+function TryPunycodeToUTF8(const aPunycodeStr: string; out UTF8Str: string): Boolean;
 function UTF8ToPunycode(const UTF8Str: string): string;
 function PunycodeToUTF8(const aPunycodeStr: string): string;
 
@@ -226,8 +249,12 @@ begin
   Result := True;
 end;
 
-// Main function for encoding into Punycode
-function UTF8ToPunycode(const UTF8Str: string): string;
+// Core encoder with the Try* error contract (Stage 3): internal checks
+// report success/failure via Boolean instead of the "empty string = error"
+// convention. Puny is guaranteed to be EmptyStr when False is returned;
+// the plain UTF8ToPunycode below is a thin wrapper projecting False to
+// EmptyStr.
+function TryUTF8ToPunycode(const UTF8Str: string; out Puny: string): Boolean;
 var
   aInput: TUnicodeArray;
   aOutput: string;
@@ -237,14 +264,17 @@ var
   aBias, aDelta, N, M, Q, K, T: QWord;
   i: Integer;
 begin
+  Puny := EmptyStr;
+
   // Strict UTF-8 validation (Stage 2): malformed input must never reach
   // the encoder and turn into garbage output
   if not TryUTF8ToUnicodeArray(UTF8Str, aInput) then
-    Exit(EmptyStr);
+    Exit(False);
   aInputLen := Length(aInput);
 
+  // Empty input is a success with an empty result, not an error (Stage 3)
   if aInputLen = 0 then
-    Exit(EmptyStr);
+    Exit(True);
 
   aOutput := EmptyStr;
   aBasicLen := 0;
@@ -265,7 +295,10 @@ begin
   if (aBasicLen > 0) and (aBasicLen < aInputLen) then
     aOutput += _DELIMITER
   else if (aBasicLen = aInputLen) then
-    Exit(aOutput);
+  begin
+    Puny := aOutput;
+    Exit(True);
+  end;
 
   N := _INITIAL_N;
   aDelta := 0;
@@ -288,7 +321,7 @@ begin
     // Widening to QWord alone is not enough: every dangerous operation is
     // guarded explicitly, as in the RFC reference implementation.
     if (M - N) > (High(QWord) - aDelta) div QWord(aHandledLen + 1) then
-      Exit(EmptyStr);
+      Exit(False);
     aDelta += (M - N) * QWord(aHandledLen + 1);
     N := M;
 
@@ -299,7 +332,7 @@ begin
       begin
         // RFC 3492 section 6.4: delta++, fail on overflow
         if aDelta = High(QWord) then
-          Exit(EmptyStr);
+          Exit(False);
         Inc(aDelta);
       end
       else if aInput[i] = N then
@@ -335,11 +368,25 @@ begin
     Inc(N);
   end;
 
-  Result := aOutput;
+  Puny := aOutput;
+  Result := True;
 end;
 
-// Main function for decoding from Punycode
-function PunycodeToUTF8(const aPunycodeStr: string): string;
+// Compatibility wrapper around TryUTF8ToPunycode: on any failure returns
+// EmptyStr, so an empty result means "either an empty input or an error" -
+// use the Try* variant to tell these cases apart
+function UTF8ToPunycode(const UTF8Str: string): string;
+begin
+  if not TryUTF8ToPunycode(UTF8Str, Result) then
+    Result := EmptyStr;
+end;
+
+// Core decoder with the Try* error contract (Stage 3): internal checks
+// report success/failure via Boolean instead of the "empty string = error"
+// convention. UTF8Str is guaranteed to be EmptyStr when False is returned;
+// the plain PunycodeToUTF8 below is a thin wrapper projecting False to
+// EmptyStr.
+function TryPunycodeToUTF8(const aPunycodeStr: string; out UTF8Str: string): Boolean;
 var
   aOutput: TUnicodeArray = ();
   aInputLen, aOutputLen, aBasicLen: Integer;
@@ -350,6 +397,7 @@ var
   aOldI, D: QWord;
   aGroupDone: Boolean;
 begin
+  UTF8Str := EmptyStr;
   aInputLen := Length(aPunycodeStr);
 
   // Find the last delimiter
@@ -369,7 +417,7 @@ begin
   for aPos := 1 to aBasicLen do
   begin
     if Ord(aPunycodeStr[aPos]) >= $80 then
-      Exit(EmptyStr);
+      Exit(False);
     aOutput[aPos - 1] := Ord(aPunycodeStr[aPos]);
   end;
 
@@ -395,11 +443,11 @@ begin
       Inc(aPos);
 
       if aDigit >= _BASE then
-        Exit(EmptyStr); // Invalid character
+        Exit(False); // Invalid character
 
       // RFC 3492 section 6.4: i += digit * w, fail on overflow
       if aDigit > (High(QWord) - I) div W then
-        Exit(EmptyStr);
+        Exit(False);
       I += aDigit * W;
 
       if K <= aBias then
@@ -417,7 +465,7 @@ begin
 
       // RFC 3492 section 6.4: w *= (base - t), fail on overflow
       if W > High(QWord) div (_BASE - T) then
-        Exit(EmptyStr);
+        Exit(False);
       W *= (_BASE - T);
       Inc(K, _BASE);
     end;
@@ -426,11 +474,11 @@ begin
     // digit < t arrives) is invalid, not "one more final digit" (Stage 2;
     // reference Python raises "incomplete punycode string")
     if not aGroupDone then
-      Exit(EmptyStr);
+      Exit(False);
 
     // RFC 3492 section 6.4: i - oldi must not wrap around
     if I < aOldI then
-      Exit(EmptyStr);
+      Exit(False);
     aBias := Adapt(I - aOldI, aOutputLen + 1, aOldI = 0);
 
     // DivMod is 32-bit; n = i div (out + 1), i = i mod (out + 1) manually
@@ -440,14 +488,14 @@ begin
     // RFC 3492 section 6.4: n += delta, fail on overflow. N is kept within
     // Cardinal range so the store into aOutput cannot truncate it.
     if D > High(Cardinal) - N then
-      Exit(EmptyStr);
+      Exit(False);
     N += D;
 
     // A point above U+10FFFF is not valid Unicode: fail instead of letting
     // it through to the output (Stage 2 completes the Stage 1 guard;
     // reference Python raises "Invalid character U+...")
     if N > $10FFFF then
-      Exit(EmptyStr);
+      Exit(False);
 
     if aOutputLen >= High(aOutput) then SetLength(aOutput, Round(aOutputLen*1.33)+1);
 
@@ -463,7 +511,19 @@ begin
   end;
 
   SetLength(aOutput, aOutputLen);
-  if not TryUnicodeArrayToUTF8(aOutput, Result) then
+  // TryUnicodeArrayToUTF8 leaves UTF8Str empty on failure, so the
+  // output-empty guarantee holds on this path as well
+  if not TryUnicodeArrayToUTF8(aOutput, UTF8Str) then
+    Exit(False);
+  Result := True;
+end;
+
+// Compatibility wrapper around TryPunycodeToUTF8: on any failure returns
+// EmptyStr, so an empty result means "either an empty input or an error" -
+// use the Try* variant to tell these cases apart
+function PunycodeToUTF8(const aPunycodeStr: string): string;
+begin
+  if not TryPunycodeToUTF8(aPunycodeStr, Result) then
     Result := EmptyStr;
 end;
 
