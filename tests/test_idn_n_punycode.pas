@@ -505,10 +505,12 @@ begin
     TryUnicodeToIDN(#$C3'AB' + '.com', aOut));
   AssertEquals('Failed encode leaves output empty', EmptyStr, aOut);
 
-  // Negative: an xn-- label that cannot be decoded fails the whole domain
-  // instead of silently dropping the label
-  AssertFalse('Undecodable xn-- label fails', TryIDNToUnicode('test.xn--!!', aOut));
-  AssertEquals('Failed decode leaves output empty', EmptyStr, aOut);
+  // Stage 4: an xn-- label that cannot be decoded is kept verbatim instead
+  // of failing the whole domain or being silently dropped — the result
+  // never loses a label, so a decode round-trip cannot collapse the domain
+  AssertTrue('Undecodable xn-- label keeps the domain decodable',
+    TryIDNToUnicode('test.xn--!!', aOut));
+  AssertEquals('Undecodable xn-- label kept verbatim', 'test.xn--!!', aOut);
 end;
 
 procedure TTestIDN.TestXnPrefixCaseInsensitive;
@@ -516,24 +518,24 @@ begin
   // Baseline: lowercase prefix decodes fine
   AssertEquals('Lowercase xn-- prefix',
                'пример.рф', IDNToUnicode('xn--e1afmkfd.xn--p1ai'));
-  // DNS is case-insensitive, so the uppercase prefix must decode as well.
-  // Currently the prefix comparison is case-sensitive and the label is
-  // returned undecoded.
-  // TODO Этап 4: включить проверку, когда префикс станет регистронезависимым:
-  // AssertEquals('Uppercase XN-- prefix',
-  //              'пример.рф', IDNToUnicode('XN--e1afmkfd.xn--p1ai'));
+  // DNS is case-insensitive: the uppercase prefix must decode as well
+  AssertEquals('Uppercase XN-- prefix',
+               'пример.рф', IDNToUnicode('XN--e1afmkfd.xn--p1ai'));
+  // Mixed case, including the payload: the label is lowercased before
+  // decoding, so the basic part comes out in lowercase (IDNA ToUnicode
+  // behavior)
+  AssertEquals('Mixed-case Xn-- label with payload',
+               'münchen.com', IDNToUnicode('Xn--Mnchen-3ya.com'));
 end;
 
 procedure TTestIDN.TestFailedLabelKept;
 var
   aResult: string;
 begin
-  // A label that fails to decode must be kept verbatim; currently it is
-  // silently dropped ('test.xn--!!' returns 'test.')
+  // A label that fails to decode must be kept verbatim, not silently
+  // dropped: 'test.xn--!!' must round-trip to itself
   aResult := IDNToUnicode('test.xn--!!');
-  // TODO Этап 4: включить проверку, когда неудачное декодирование перестанет
-  // терять метку:
-  // AssertEquals('Undecodable label is kept', 'test.xn--!!', aResult);
+  AssertEquals('Undecodable label is kept', 'test.xn--!!', aResult);
 end;
 
 initialization
