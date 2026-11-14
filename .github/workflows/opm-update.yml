@@ -35,14 +35,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
           if git diff --quiet -- update_FpIdn.json; then
             echo "manifest already up to date, nothing to commit"
-          else
-            git add update_FpIdn.json
-            git commit -m "chore: OPM update manifest for v${{ steps.gen.outputs.version }} [skip ci]"
-            git push origin main
+            exit 0
           fi
+          git add update_FpIdn.json
+          git commit -m "chore: OPM update manifest for v${{ steps.gen.outputs.version }} [skip ci]"
+          git push origin HEAD:main
 
       - name: Create GitHub release
         if: github.ref_type == 'tag'
