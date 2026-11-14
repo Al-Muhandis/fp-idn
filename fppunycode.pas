@@ -5,7 +5,7 @@ unit fppunycode;
 interface
 
 uses
-  SysUtils, Classes, Math
+  SysUtils, Classes
   ;
 
 function UTF8ToPunycode(const UTF8Str: string): string;
@@ -30,10 +30,12 @@ const
 type
   TUnicodeArray = array of Cardinal;
 
-// Bias adaptation for the next iteration
-function Adapt(aDelta, aNumPoints: Cardinal; aFirstTime: Boolean): Cardinal; inline;
+// Bias adaptation for the next iteration. aDelta is QWord: RFC 3492
+// section 6.4 requires overflow-controlled arithmetic on deltas, so both
+// encode and decode pass deltas that no longer fit into 32 bits.
+function Adapt(aDelta: QWord; aNumPoints: Cardinal; aFirstTime: Boolean): QWord; inline;
 var
-  k: Cardinal;
+  k: QWord;
 begin
   if aDelta=0 then Exit(0);
   if aFirstTime then
@@ -51,7 +53,7 @@ begin
 end;
 
 // Encode a digit into a character
-function EncodeDigit(aDigit: Cardinal): Char; inline;
+function EncodeDigit(aDigit: QWord): Char; inline;
 begin
   if aDigit < 26 then
     Result := Chr(Ord('a') + aDigit)
@@ -203,7 +205,9 @@ var
   aInput: TUnicodeArray;
   aOutput: string;
   aInputLen, aBasicLen, aHandledLen: Integer;
-  aBias, aDelta, N, M, Q, K, T: Cardinal;
+  // QWord arithmetic per RFC 3492 section 6.4: deltas and their
+  // intermediate products overflow 32-bit Cardinal on large inputs
+  aBias, aDelta, N, M, Q, K, T: QWord;
   i: Integer;
 begin
   aInput := UTF8ToUnicodeArray(UTF8Str);
@@ -240,25 +244,34 @@ begin
   while aHandledLen < aInputLen do
   begin
     // Find the smallest code point >= N
-    M := High(Cardinal);
+    M := High(QWord);
     for i := 0 to aInputLen - 1 do
     begin
       if (aInput[i] >= N) and (aInput[i] < M) then
         M := aInput[i];
     end;
 
-    if M = High(Cardinal) then
+    if M = High(QWord) then
       Break;
 
-    // Increment delta
-    aDelta += (M - N) * (aHandledLen + 1);
+    // RFC 3492 section 6.4: delta += (m - n) * (h + 1), fail on overflow.
+    // Widening to QWord alone is not enough: every dangerous operation is
+    // guarded explicitly, as in the RFC reference implementation.
+    if (M - N) > (High(QWord) - aDelta) div QWord(aHandledLen + 1) then
+      Exit(EmptyStr);
+    aDelta += (M - N) * QWord(aHandledLen + 1);
     N := M;
 
     // Process all characters equal to N
     for i := 0 to aInputLen - 1 do
     begin
       if aInput[i] < N then
-        Inc(aDelta)
+      begin
+        // RFC 3492 section 6.4: delta++, fail on overflow
+        if aDelta = High(QWord) then
+          Exit(EmptyStr);
+        Inc(aDelta);
+      end
       else if aInput[i] = N then
       begin
         Q := aDelta;
@@ -300,10 +313,11 @@ function PunycodeToUTF8(const aPunycodeStr: string): string;
 var
   aOutput: TUnicodeArray = ();
   aInputLen, aOutputLen, aBasicLen: Integer;
-  aBias, N, I, K, aDigit, T, W: Cardinal;
+  // QWord arithmetic per RFC 3492 section 6.4: i, w and n overflow
+  // 32-bit Cardinal on hostile input
+  aBias, N, I, K, aDigit, T, W: QWord;
   aPos, aDelimPos: Integer;
-  aOldI: Cardinal;
-  D: Cardinal = 0;
+  aOldI, D: QWord;
 begin
   aInputLen := Length(aPunycodeStr);
 
@@ -345,6 +359,9 @@ begin
       if aDigit >= _BASE then
         Exit(EmptyStr); // Invalid character
 
+      // RFC 3492 section 6.4: i += digit * w, fail on overflow
+      if aDigit > (High(QWord) - I) div W then
+        Exit(EmptyStr);
       I += aDigit * W;
 
       if K <= aBias then
@@ -357,12 +374,26 @@ begin
       if aDigit < T then
         Break;
 
+      // RFC 3492 section 6.4: w *= (base - t), fail on overflow
+      if W > High(QWord) div (_BASE - T) then
+        Exit(EmptyStr);
       W *= (_BASE - T);
       Inc(K, _BASE);
     end;
 
+    // RFC 3492 section 6.4: i - oldi must not wrap around
+    if I < aOldI then
+      Exit(EmptyStr);
     aBias := Adapt(I - aOldI, aOutputLen + 1, aOldI = 0);
-    DivMod(I, aOutputLen + 1, D, I);
+
+    // DivMod is 32-bit; n = i div (out + 1), i = i mod (out + 1) manually
+    D := I div QWord(aOutputLen + 1);
+    I := I mod QWord(aOutputLen + 1);
+
+    // RFC 3492 section 6.4: n += delta, fail on overflow. N is kept within
+    // Cardinal range so the store into aOutput cannot truncate it.
+    if D > High(Cardinal) - N then
+      Exit(EmptyStr);
     N += D;
 
     if aOutputLen >= High(aOutput) then SetLength(aOutput, Round(aOutputLen*1.33)+1);

@@ -302,17 +302,15 @@ begin
   // Stress vector for the encoder overflow (RFC 3492 section 6.4):
   // 50000 x U+0080 + 5000 x U+0099 + 5000 x U+10FFFF. Verified with
   // Python's punycode codec: the encoded length must be 60015 and the
-  // round-trip must be identical. The current encoder returns 60013
-  // and breaks the round-trip because of 32-bit overflow in the delta
-  // accumulation; fixed by Stage 1 (QWord arithmetic + explicit guards).
+  // round-trip must be identical. The pre-Stage-1 encoder returned 60013
+  // and broke the round-trip because of 32-bit overflow in the delta
+  // accumulation; fixed by QWord arithmetic + explicit guards.
   s := RepeatUTF8(#$C2#$80, 50000) +           // 50000 x U+0080
        RepeatUTF8(#$C2#$99, 5000) +            // 5000 x U+0099
        RepeatUTF8(#$F4#$8F#$BF#$BF, 5000);     // 5000 x U+10FFFF
   puny := UTF8ToPunycode(s);
-  // TODO Этап 1: включить строгие проверки, когда дельта и промежуточные
-  // произведения перейдут на QWord с явными проверками переполнения:
-  // AssertEquals('Overflow stress: encoded length', 60015, Length(puny));
-  // AssertRoundTrip('Overflow stress: round-trip', s);
+  AssertEquals('Overflow stress: encoded length', 60015, Length(puny));
+  AssertRoundTrip('Overflow stress: round-trip', s);
 end;
 
 procedure TTestPunycode.TestOutOfBoundsAndCorruptedData;
@@ -334,18 +332,15 @@ begin
   AssertEquals('5000 x ''a'' must decode to 5000 x U+0080',
     RepeatUTF8(#$C2#$80, 5000), puny);
 
-  // Out-of-bounds: 20 x 'z' ends with a truncated digit group and
-  // 20 x '9' overflows W/I in the decoder. Currently the first returns
-  // garbage and the second returns EmptyStr only by luck. The proper
-  // EmptyStr-on-error behaviour arrives with Stages 1-2.
+  // Out-of-bounds: 20 x 'z' ends with a truncated digit group (Stage 2
+  // will make that invalid input). 20 x '9' overflows W/I in the decoder;
+  // since Stage 1 that overflow is cut off by explicit guards, not luck.
   puny := PunycodeToUTF8(StringOfChar('z', 20));
   // TODO Этап 2: включить проверку, когда обрыв цифровой группы станет
   // невалидным входом (а не трактующим обрыв как финальную цифру):
   // AssertEquals('20 x ''z'': truncated digit group', EmptyStr, puny);
   puny := PunycodeToUTF8(StringOfChar('9', 20));
-  // TODO Этап 1: включить проверку, когда переполнение I/W будет отсекаться
-  // явной защитой, а не случайным пустым результатом:
-  // AssertEquals('20 x ''9'': overflow', EmptyStr, puny);
+  AssertEquals('20 x ''9'': overflow', EmptyStr, puny);
 end;
 
 { TTestIDN }
