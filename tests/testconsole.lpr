@@ -3,7 +3,8 @@ program testconsole;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, consoletestrunner, test_idn_n_punycode
+  Classes, consoletestrunner, test_idn_n_punycode,
+  test_idn_n_punycode_property
   ;
 type
 

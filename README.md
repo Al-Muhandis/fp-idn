@@ -31,7 +31,7 @@ uses fppunycode;
 var
   puny: string;
 begin
-  puny := UTF8ToPunycode('тест'); // -> b1abfaa5a0a
+  puny := UTF8ToPunycode('тест'); // -> e1aybc
 end;
 ```
 

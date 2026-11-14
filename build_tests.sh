@@ -11,13 +11,12 @@ if [ -z "$FPC_CMD" ] || [ ! -x "$FPC_CMD" ]; then
 fi
 
 # Ensure the output directory exists
-mkdir -p ../lib
 mkdir -p lib
 
 # Compile the console test application
 echo "Compiling the console test application..."
 "$FPC_CMD" -Mobjfpc -Scghi -O1 -g -gl -l -vewnhibq \
-  -Fu. -Fu.. -FUlib/ \
+  -Fu. -FUlib/ \
   tests/testconsole.lpr
 
 if [ $? -ne 0 ]; then
@@ -28,10 +27,10 @@ fi
 echo "Compilation successful!"
 echo
 
-# Run tests
+# Run tests; propagate the failure exit code so CI can detect it
 echo "Running tests..."
 echo
-./tests/testconsole --all
+./tests/testconsole --all || exit $?
 
 echo
 echo "Tests completed."

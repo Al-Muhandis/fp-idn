@@ -32,8 +32,12 @@ type
     procedure TestCaseInsensitive;
     // Error handling tests
     procedure TestInvalidPunycode;
-    procedure TestCorruptedData;  
+    procedure TestCorruptedData;
     procedure TestOutOfBoundsAndCorruptedData;
+    // Reference vectors verified against Python's punycode codec
+    procedure TestReferenceVectors;
+    // Stress vector for encoder overflow (enabled in Stage 1)
+    procedure TestOverflowStress;
     // Performance tests
     procedure TestLargeData;
     // Real-world domain examples
@@ -54,6 +58,9 @@ type
     procedure TestSubdomains;
     procedure TestRealDomain;
     procedure TestEmptyInput;
+    // xn-- prefix handling (strict assertions enabled in Stage 4)
+    procedure TestXnPrefixCaseInsensitive;
+    procedure TestFailedLabelKept;
   end;
 
 implementation
@@ -61,6 +68,30 @@ implementation
 uses
   fppunycode, fpidn
   ;
+
+// Repeats a UTF-8 sequence (one or more bytes encoding a single code point)
+// aCount times. StringOfChar cannot do this for multi-byte code points:
+// repeating the bytes separately would produce invalid UTF-8.
+function RepeatUTF8(const aUTF8Sequence: string; aCount: Integer): string;
+var
+  i: Integer;
+begin
+  Result := '';
+  for i := 1 to aCount do
+    Result += aUTF8Sequence;
+end;
+
+const
+  // Conforming RFC 3492 decode of 'invalid' — a reference vector verified
+  // with two independent implementations (Python codecs.encode/decode
+  // 'punycode' and this library): UTF-8 bytes
+  // E6 9B 8C E6 9B 93 E6 9B 90 E6 9B 92 E6 9B 8C
+  // = U+66CC U+66D3 U+66D0 U+66D2 U+66CC
+  DecodedInvalid = #$E6#$9B#$8C#$E6#$9B#$93#$E6#$9B#$90#$E6#$9B#$92#$E6#$9B#$8C;
+  // Conforming decode of 'invalid-punycode-string' (same verification)
+  DecodedInvalidLong =
+    #$69#$6E#$76#$D5#$B1#$61#$6C#$69#$D5#$B2#$64#$2D#$70#$75#$6E#$D5#$B1 +
+    #$D5#$B2#$79#$63#$6F#$64#$65;
 
 procedure TTestPunycode.AssertEncodeDecode(const aTestName, aInput, ExpectedPunycode: string);
 var
@@ -191,26 +222,23 @@ begin
 end;
 
 procedure TTestPunycode.TestInvalidPunycode;
-var
-  aInvalidResult: string;
 begin
-  // Invalid punycode string test
-  aInvalidResult := PunycodeToUTF8('invalid-punycode-string');  
-  aInvalidResult := PunycodeToUTF8('invalid');
-  // The main point is the function should not raise exceptions
-  AssertTrue('The function must execute without errors', aInvalidResult <> EmptyStr);
+  // 'invalid' is not valid punycode, yet RFC 3492 decoders produce a
+  // well-defined output for it. This is a conformance vector verified
+  // byte-for-byte against Python's punycode codec:
+  AssertEquals('Conforming decode of ''invalid''',
+               DecodedInvalid, PunycodeToUTF8('invalid'));
+  AssertEquals('Conforming decode of ''invalid-punycode-string''',
+               DecodedInvalidLong, PunycodeToUTF8('invalid-punycode-string'));
 end;
 
 procedure TTestPunycode.TestCorruptedData;
-var
-  {%H-}Result1, {%H-}Result2: string;
 begin
-  // Corrupted data test
-  Result1 := PunycodeToUTF8('');
-  Result2 := PunycodeToUTF8('invalid');
-
-  // should not raise exceptions
-  AssertTrue('Correpted data processed', True);
+  // Corrupted data must not raise exceptions and must follow the
+  // library error contract (EmptyStr on error)
+  AssertEquals('Empty input', EmptyStr, PunycodeToUTF8(EmptyStr));
+  AssertEquals('Invalid input decodes conformingly',
+               DecodedInvalid, PunycodeToUTF8('invalid'));
 end;
 
 procedure TTestPunycode.TestLargeData;
@@ -249,23 +277,75 @@ begin
   AssertEquals('Deterministic encoding', UTF8ToPunycode('пример'), UTF8ToPunycode('пример'));
 end;
 
+procedure TTestPunycode.TestReferenceVectors;
+begin
+  // Reference vectors verified with two independent implementations
+  // (Python codecs 'punycode' and known registered domains);
+  // every vector is checked in both directions (encode and decode)
+  AssertEncodeDecode('Cyrillic', 'тест', 'e1aybc');
+  AssertEncodeDecode('Cyrillic', 'пример', 'e1afmkfd');
+  AssertEncodeDecode('German', 'münchen', 'mnchen-3ya');
+  AssertEncodeDecode('German', 'bücher', 'bcher-kva');
+  AssertEncodeDecode('Chinese', '中国', 'fiqs8s');
+  AssertEncodeDecode('Japanese', '日本', 'wgv71a');
+  AssertEncodeDecode('Arabic', 'مثال', 'mgbh0fb');
+  AssertEncodeDecode('Japanese', 'ドメイン名例', 'eckwd4c7cu47r2wf');
+  AssertEncodeDecode('Emoji', '😀', 'e28h');
+  AssertEncodeDecode('Mixed basic+extended', 'ab-ч', 'ab--vfd');
+  AssertEncodeDecode('Mixed digits', 'субдомен123', '123-9cdpg2cjg1aw');
+end;
+
+procedure TTestPunycode.TestOverflowStress;
+var
+  s, puny: string;
+begin
+  // Stress vector for the encoder overflow (RFC 3492 section 6.4):
+  // 50000 x U+0080 + 5000 x U+0099 + 5000 x U+10FFFF. Verified with
+  // Python's punycode codec: the encoded length must be 60015 and the
+  // round-trip must be identical. The current encoder returns 60013
+  // and breaks the round-trip because of 32-bit overflow in the delta
+  // accumulation; fixed by Stage 1 (QWord arithmetic + explicit guards).
+  s := RepeatUTF8(#$C2#$80, 50000) +           // 50000 x U+0080
+       RepeatUTF8(#$C2#$99, 5000) +            // 5000 x U+0099
+       RepeatUTF8(#$F4#$8F#$BF#$BF, 5000);     // 5000 x U+10FFFF
+  puny := UTF8ToPunycode(s);
+  // TODO Этап 1: включить строгие проверки, когда дельта и промежуточные
+  // произведения перейдут на QWord с явными проверками переполнения:
+  // AssertEquals('Overflow stress: encoded length', 60015, Length(puny));
+  // AssertRoundTrip('Overflow stress: round-trip', s);
+end;
+
 procedure TTestPunycode.TestOutOfBoundsAndCorruptedData;
 var
   puny: string;
 begin
-  // Invalid punycode-strings
+  // Invalid punycode-strings: verified that Python's punycode codec raises
+  // UnicodeError for every input below; the library contract is EmptyStr
   AssertEquals('', PunycodeToUTF8('ex ample')); // whitespace forbidden
-  puny:=PunycodeToUTF8(
-      'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz'
-    );
-  AssertEquals('', PunycodeToUTF8('%')); // forbidden character
-  AssertEquals('', PunycodeToUTF8('\x01\x02test'));     // Control chars
-  AssertEquals('', PunycodeToUTF8('!@#$%^&*()'));       // Symbols only
-  AssertEquals('', PunycodeToUTF8('%%%%%'));                // Total garbage
+  AssertEquals('', PunycodeToUTF8('%'));        // forbidden character
+  AssertEquals('', PunycodeToUTF8(#$01#$02'test')); // Control chars
+  AssertEquals('', PunycodeToUTF8('!@#$%^&*()'));   // Symbols only
+  AssertEquals('', PunycodeToUTF8('%%%%%'));        // Total garbage
 
-  // Checking for out-of-bounds: a very long string of garbage
-  puny := StringOfChar('a', 5000);
-  puny := PunycodeToUTF8(puny);
+  // Out-of-bounds: 5000 x 'a' is a conforming decode producing
+  // 5000 x U+0080 (verified against Python's punycode codec) —
+  // this must stay a non-empty, deterministic result
+  puny := PunycodeToUTF8(StringOfChar('a', 5000));
+  AssertEquals('5000 x ''a'' must decode to 5000 x U+0080',
+    RepeatUTF8(#$C2#$80, 5000), puny);
+
+  // Out-of-bounds: 20 x 'z' ends with a truncated digit group and
+  // 20 x '9' overflows W/I in the decoder. Currently the first returns
+  // garbage and the second returns EmptyStr only by luck. The proper
+  // EmptyStr-on-error behaviour arrives with Stages 1-2.
+  puny := PunycodeToUTF8(StringOfChar('z', 20));
+  // TODO Этап 2: включить проверку, когда обрыв цифровой группы станет
+  // невалидным входом (а не трактующим обрыв как финальную цифру):
+  // AssertEquals('20 x ''z'': truncated digit group', EmptyStr, puny);
+  puny := PunycodeToUTF8(StringOfChar('9', 20));
+  // TODO Этап 1: включить проверку, когда переполнение I/W будет отсекаться
+  // явной защитой, а не случайным пустым результатом:
+  // AssertEquals('20 x ''9'': overflow', EmptyStr, puny);
 end;
 
 { TTestIDN }
@@ -314,6 +394,31 @@ procedure TTestIDN.TestEmptyInput;
 begin
   AssertEquals('Empty input to IDN', '', UnicodeToIDN(''));
   AssertEquals('Empty input from IDN', '', IDNToUnicode(''));
+end;
+
+procedure TTestIDN.TestXnPrefixCaseInsensitive;
+begin
+  // Baseline: lowercase prefix decodes fine
+  AssertEquals('Lowercase xn-- prefix',
+               'пример.рф', IDNToUnicode('xn--e1afmkfd.xn--p1ai'));
+  // DNS is case-insensitive, so the uppercase prefix must decode as well.
+  // Currently the prefix comparison is case-sensitive and the label is
+  // returned undecoded.
+  // TODO Этап 4: включить проверку, когда префикс станет регистронезависимым:
+  // AssertEquals('Uppercase XN-- prefix',
+  //              'пример.рф', IDNToUnicode('XN--e1afmkfd.xn--p1ai'));
+end;
+
+procedure TTestIDN.TestFailedLabelKept;
+var
+  aResult: string;
+begin
+  // A label that fails to decode must be kept verbatim; currently it is
+  // silently dropped ('test.xn--!!' returns 'test.')
+  aResult := IDNToUnicode('test.xn--!!');
+  // TODO Этап 4: включить проверку, когда неудачное декодирование перестанет
+  // терять метку:
+  // AssertEquals('Undecodable label is kept', 'test.xn--!!', aResult);
 end;
 
 initialization
