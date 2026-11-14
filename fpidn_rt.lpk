@@ -4,6 +4,7 @@
     <PathDelim Value="\"/>
     <Name Value="fpidn_rt"/>
     <Type Value="RunTimeOnly"/>
+    <Author Value="Renat Suleymanov (al-muhandis)"/>
     <CompilerOptions>
       <Version Value="11"/>
       <PathDelim Value="\"/>
@@ -11,6 +12,9 @@
         <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
+    <Description Value="Internationalized Domain Names for Free Pascal: Punycode (RFC 3492) conversion with strict input validation and Try* error contract, plus a domain-level IDN layer with IDNA mapping (label separators, case-fold MVP) and DNS length/character validation."/>
+    <License Value="MIT"/>
+    <Version Major="1" Minor="1"/>
     <Files>
       <Item>
         <Filename Value="fpidn.pas"/>

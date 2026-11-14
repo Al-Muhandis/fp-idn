@@ -60,7 +60,12 @@ function Adapt(aDelta: QWord; aNumPoints: Cardinal; aFirstTime: Boolean): QWord;
 var
   k: QWord;
 begin
-  if aDelta=0 then Exit(0);
+  // Early exit for a zero delta is a pure optimization: the RFC formula
+  // returns 0 for it anyway (0 stays 0 through div/shr, the while loop
+  // does not run and the final division is 0 / skew), so this branch is
+  // equivalent to the RFC 3492 pseudocode, not a deviation from it.
+  if aDelta = 0 then
+    Exit(0);
   if aFirstTime then
     aDelta := aDelta div _DAMP
   else
@@ -261,7 +266,14 @@ var
   aInputLen, aBasicLen, aHandledLen: Integer;
   aOutLen, aOutCap: Integer;
   // QWord arithmetic per RFC 3492 section 6.4: deltas and their
-  // intermediate products overflow 32-bit Cardinal on large inputs
+  // intermediate products overflow 32-bit Cardinal on large inputs.
+  // Names follow the RFC 3492 section 6.3 pseudocode:
+  //   N = n      (threshold: smallest unhandled code point)
+  //   M = m      (next code point above N found in the input)
+  //   Q = q      (scaled-down delta while emitting digits)
+  //   K = k      (current digit position within the group)
+  //   T = t      (threshold clamped to TMIN..TMAX)
+  // plus aDelta = delta and aBias = bias.
   aBias, aDelta, N, M, Q, K, T: QWord;
   i: Integer;
 
@@ -422,7 +434,16 @@ var
   aOutput: TUnicodeArray = ();
   aInputLen, aOutputLen, aBasicLen: Integer;
   // QWord arithmetic per RFC 3492 section 6.4: i, w and n overflow
-  // 32-bit Cardinal on hostile input
+  // 32-bit Cardinal on hostile input. Names follow the RFC 3492
+  // section 6.2 pseudocode:
+  //   N = n      (most recently inserted code point)
+  //   I = i      (the running "i" state variable)
+  //   K = k      (current digit position within the group)
+  //   aDigit = digit (value of the digit being consumed)
+  //   T = t      (threshold clamped to TMIN..TMAX)
+  //   W = w      (weight of the current digit)
+  //   aOldI = oldi, D = "i div (out + 1)" (the increment added to n)
+  // plus aBias = bias.
   aBias, N, I, K, aDigit, T, W: QWord;
   aPos, aDelimPos: Integer;
   aOldI, D: QWord;

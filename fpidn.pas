@@ -201,7 +201,7 @@ end;
 function TryUnicodeToIDN(const aDomain: string; out IDN: string): Boolean;
 var
   aParts: TStringArray;
-  aEncodedParts: TStringArray = ();
+  aEncodedParts: TStringArray;
   aLabel, aJoined: string;
   aPuny: string;
   i: Integer;
@@ -263,7 +263,7 @@ end;
 function TryIDNToUnicode(const aDomain: string; out Unicode: string): Boolean;
 var
   aParts: TStringArray;
-  aDecodedParts: TStringArray = ();
+  aDecodedParts: TStringArray;
   i: Integer;
   aPuny: string;
 begin
@@ -289,7 +289,7 @@ begin
       aDecodedParts[i] := aParts[i];
   end;
 
-  Unicode := Unicode.Join('.', aDecodedParts);
+  Unicode := string.Join('.', aDecodedParts);
   Result := True;
 end;
 

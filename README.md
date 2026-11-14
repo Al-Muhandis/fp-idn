@@ -31,6 +31,13 @@ uses fppunycode;
 var
   puny: string;
 begin
+  // Primary API: False on malformed UTF-8 or arithmetic overflow,
+  // puny is then guaranteed to be an empty string
+  if not TryUTF8ToPunycode('тест', puny) then
+    Writeln('invalid input');
+  // success: puny = 'e1aybc'
+
+  // Compatibility wrapper: returns an empty string on any failure
   puny := UTF8ToPunycode('тест'); // -> e1aybc
 end;
 ```
@@ -43,8 +50,23 @@ uses fpidn;
 var
   encoded, decoded: string;
 begin
-  encoded := UnicodeToIDN('пример.рф');
-  decoded := IDNToUnicode(encoded);
+  // Before encoding, a pragmatic IDNA mapping is applied: the Unicode
+  // label separators U+FF0E/U+3002/U+FF61 are mapped to '.', and
+  // ASCII/Cyrillic/Greek uppercase is folded to lowercase.
+  // DNS length limits and forbidden ASCII characters fail with False.
+  if not TryUnicodeToIDN('ПРИМЕР．РФ', encoded) then
+    Writeln('invalid domain');
+  // success: encoded = 'xn--e1afmkfd.xn--p1ai'
+
+  // The decode direction keeps undecodable xn-- labels verbatim instead
+  // of losing them, so it currently always succeeds
+  if not TryIDNToUnicode(encoded, decoded) then
+    Writeln('unreachable');
+  // success: decoded = 'пример.рф'
+
+  // Compatibility wrappers: empty string on any failure
+  encoded := UnicodeToIDN('пример.рф');  // -> xn--e1afmkfd.xn--p1ai
+  decoded := IDNToUnicode(encoded);      // -> пример.рф
 end;
 ```
 
@@ -52,7 +74,8 @@ The `Try*` variants (`TryUnicodeToIDN`, `TryIDNToUnicode`,
 `TryUTF8ToPunycode`, `TryPunycodeToUTF8`) are the recommended API: they
 return `False` on invalid input (with the output parameter guaranteed
 empty), while the plain functions project every failure to an empty
-string.
+string. An empty input is a success with an empty result, not an error;
+use the `Try*` variants to tell the two cases apart.
 
 ### Demo console application
 

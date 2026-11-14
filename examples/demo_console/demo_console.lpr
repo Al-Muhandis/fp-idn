@@ -17,7 +17,7 @@ begin
   Writeln('Converting domain to ASCII:');
   Writeln('пример: münchen.de → ', UnicodeToIDN('münchen.de'));
 
-  Writeln('Back conerting:');
+  Writeln('Back converting:');
   Writeln('xn--mnchen-3ya.de → ', IDNToUnicode('xn--mnchen-3ya.de'));
 end.
 
