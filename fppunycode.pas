@@ -259,10 +259,27 @@ var
   aInput: TUnicodeArray;
   aOutput: string;
   aInputLen, aBasicLen, aHandledLen: Integer;
+  aOutLen, aOutCap: Integer;
   // QWord arithmetic per RFC 3492 section 6.4: deltas and their
   // intermediate products overflow 32-bit Cardinal on large inputs
   aBias, aDelta, N, M, Q, K, T: QWord;
   i: Integer;
+
+  // Append one character to the preallocated output buffer, keeping the
+  // write index in sync. The initial capacity is an upper estimate (see
+  // below); doubling on overflow is a safety net for inputs whose digit
+  // output outgrows the estimate, so the amortized append cost stays O(1)
+  procedure Emit(C: Char);
+  begin
+    if aOutLen >= aOutCap then
+    begin
+      aOutCap := aOutCap * 2;
+      SetLength(aOutput, aOutCap);
+    end;
+    Inc(aOutLen);
+    aOutput[aOutLen] := C;
+  end;
+
 begin
   Puny := EmptyStr;
 
@@ -276,26 +293,39 @@ begin
   if aInputLen = 0 then
     Exit(True);
 
-  aOutput := EmptyStr;
   aBasicLen := 0;
+
+  // Count the basic characters first: the buffer is allocated once from an
+  // upper estimate instead of growing by string concatenation, which copies
+  // the whole output on every append (O(n) reallocations overall)
+  for i := 0 to aInputLen - 1 do
+  begin
+    if aInput[i] < $80 then
+      Inc(aBasicLen);
+  end;
+
+  // Upper estimate: every basic character once, one delimiter, 6 digits per
+  // non-basic character (the typical output is 1-2 digits per character;
+  // Emit doubles the buffer if the estimate is ever exceeded)
+  aOutCap := aBasicLen + 1 + 6 * (aInputLen - aBasicLen);
+  SetLength(aOutput, aOutCap);
+  aOutLen := 0;
 
   // Copy all basic ASCII characters
   for i := 0 to aInputLen - 1 do
   begin
     if aInput[i] < $80 then
-    begin
-      aOutput += Chr(aInput[i]);
-      Inc(aBasicLen);
-    end;
+      Emit(Chr(aInput[i]));
   end;
 
   aHandledLen := aBasicLen;
 
   // Append delimiter if there are basic characters
   if (aBasicLen > 0) and (aBasicLen < aInputLen) then
-    aOutput += _DELIMITER
+    Emit(_DELIMITER)
   else if (aBasicLen = aInputLen) then
   begin
+    SetLength(aOutput, aOutLen);
     Puny := aOutput;
     Exit(True);
   end;
@@ -352,12 +382,12 @@ begin
           if Q < T then
             Break;
 
-          aOutput += EncodeDigit(T + ((Q - T) mod (_BASE - T)));
+          Emit(EncodeDigit(T + ((Q - T) mod (_BASE - T))));
           Q := (Q - T) div (_BASE - T);
           Inc(K, _BASE);
         end;
 
-        aOutput += EncodeDigit(Q);
+        Emit(EncodeDigit(Q));
         aBias := Adapt(aDelta, aHandledLen + 1, aHandledLen = aBasicLen);
         aDelta := 0;
         Inc(aHandledLen);
@@ -368,6 +398,7 @@ begin
     Inc(N);
   end;
 
+  SetLength(aOutput, aOutLen);
   Puny := aOutput;
   Result := True;
 end;
