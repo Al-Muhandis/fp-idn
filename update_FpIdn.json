@@ -7,7 +7,7 @@
   "UpdatePackageFiles" : [
     {
       "ForceNotify" : false,
-      "InternalVersion" : 1010000,
+      "InternalVersion" : 1,
       "Name" : "fpidn_rt.lpk",
       "Version" : "1.1.0.0"
     }

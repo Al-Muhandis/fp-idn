@@ -17,6 +17,7 @@ Usage:
 """
 import json
 import os
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
@@ -43,22 +44,24 @@ def build_text(major, minor, release, build):
     version = "%d.%d.%d.%d" % (major, minor, release, build)
     tag = "v" + version
     internal = major * 1000000 + minor * 10000 + release * 100 + build
+    # LF only: the committed blob is LF (git autocrlf normalizes CRLF), so
+    # the file generated here must be byte-identical on Linux CI too.
     return (
-        "{\r\n"
-        "  \"UpdatePackageData\" : {\r\n"
-        "    \"DisableInOPM\" : false,\r\n"
-        "    \"DownloadZipURL\" : \"https://github.com/%s/archive/refs/tags/%s.zip\",\r\n"
-        "    \"Name\" : \"%s.zip\"\r\n"
-        "  },\r\n"
-        "  \"UpdatePackageFiles\" : [\r\n"
-        "    {\r\n"
-        "      \"ForceNotify\" : false,\r\n"
-        "      \"InternalVersion\" : %d,\r\n"
-        "      \"Name\" : \"%s\",\r\n"
-        "      \"Version\" : \"%s\"\r\n"
-        "    }\r\n"
-        "  ]\r\n"
-        "}\r\n"
+        "{\n"
+        "  \"UpdatePackageData\" : {\n"
+        "    \"DisableInOPM\" : false,\n"
+        "    \"DownloadZipURL\" : \"https://github.com/%s/archive/refs/tags/%s.zip\",\n"
+        "    \"Name\" : \"%s.zip\"\n"
+        "  },\n"
+        "  \"UpdatePackageFiles\" : [\n"
+        "    {\n"
+        "      \"ForceNotify\" : false,\n"
+        "      \"InternalVersion\" : %d,\n"
+        "      \"Name\" : \"%s\",\n"
+        "      \"Version\" : \"%s\"\n"
+        "    }\n"
+        "  ]\n"
+        "}\n"
     ) % (SLUG, tag, tag, internal, LPK_NAME, version)
 
 
@@ -79,7 +82,12 @@ def main():
                      "or the tag before releasing" % (expect_tag, version))
 
     new = build_text(major, minor, release, build).encode("ascii")
-    old = open(OUT, "rb").read() if os.path.exists(OUT) else None
+    # compare against the committed blob, not the worktree bytes: with
+    # core.autocrlf=true the worktree has CRLF while the blob has LF
+    blob = subprocess.run(
+        ["git", "cat-file", "-p", "HEAD:" + os.path.relpath(OUT, REPO).replace(os.sep, "/")],
+        cwd=REPO, capture_output=True).stdout
+    old = blob if blob else (open(OUT, "rb").read() if os.path.exists(OUT) else None)
     if old == new:
         print("manifest already up to date:", version)
         return
