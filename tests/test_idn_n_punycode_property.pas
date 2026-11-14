@@ -25,16 +25,19 @@ begin
   Result := '';
   for i := 1 to ALength do
   begin
-    // Generate random Unicode (Basic Latin, Cyrillic, CJK, Emoji).
+    // Generate random Unicode (Basic Latin, lowercase Cyrillic, CJK, Emoji).
+    // Cyrillic is lowercase-only because the IDN layer casefolds uppercase
+    // to lowercase (Stage 5): an uppercase character would not survive the
+    // UnicodeToIDN -> IDNToUnicode round-trip as an identity by design.
     // The first character must be non-ASCII: a pure-ASCII string encodes
     // without a delimiter and per RFC 3492 decodes as a digit sequence,
     // so its encode/decode round-trip is not an identity by design.
     case Random(4) of
       0: if i = 1 then
-           c := $0400 + Random($4FF - $0400) // Cyrillic instead of ASCII
+           c := $0430 + Random($450 - $430) // lowercase Cyrillic instead of ASCII
          else
            c := Random(26) + Ord('a'); // ASCII lower
-      1: c := $0400 + Random($4FF - $0400); // Cyrillic
+      1: c := $0430 + Random($450 - $430); // lowercase Cyrillic
       2: c := $4E00 + Random($9FFF - $4E00); // CJK
       3: c := $1F600 + Random($1F64F - $1F600); // Emoji
     end;

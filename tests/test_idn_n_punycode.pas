@@ -68,6 +68,12 @@ type
     // xn-- prefix handling (strict assertions enabled in Stage 4)
     procedure TestXnPrefixCaseInsensitive;
     procedure TestFailedLabelKept;
+    // IDNA mapping and label validation (Stage 5)
+    procedure TestIDNCasefoldMVP;
+    procedure TestIDNAltSeparators;
+    procedure TestIDNForbiddenASCII;
+    procedure TestIDNLabelLengthLimit;
+    procedure TestIDNDomainLengthLimit;
   end;
 
 implementation
@@ -536,6 +542,141 @@ begin
   // dropped: 'test.xn--!!' must round-trip to itself
   aResult := IDNToUnicode('test.xn--!!');
   AssertEquals('Undecodable label is kept', 'test.xn--!!', aResult);
+end;
+
+procedure TTestIDN.TestIDNCasefoldMVP;
+begin
+  // Roadmap vector: uppercase Cyrillic folds to lowercase before encoding
+  AssertEquals('Uppercase Cyrillic folds', 'xn--e1afmkfd.xn--p1ai',
+    UnicodeToIDN('ПРИМЕР.рф'));
+
+  // Uppercase and lowercase forms encode identically
+  AssertEquals('Cyrillic casefold equivalence', UnicodeToIDN('пример.рф'),
+    UnicodeToIDN('ПРИМЕР.рф'));
+
+  // Yo (U+0401) folds to lowercase yo (U+0451) and round-trips to the
+  // lowercase form
+  AssertEquals('Yo folds to lowercase yo', UnicodeToIDN('ёёё.рф'),
+    UnicodeToIDN('ЁЁЁ.рф'));
+  AssertEquals('Yo round-trip', 'ёёё.рф',
+    IDNToUnicode(UnicodeToIDN('ЁЁЁ.рф')));
+
+  // Basic Greek uppercase folds (U+0391..U+03A9, +$20)
+  AssertEquals('Greek casefold equivalence', UnicodeToIDN('ωμεγα.gr'),
+    UnicodeToIDN('ΩΜΕΓΑ.gr'));
+
+  // ASCII folds
+  AssertEquals('ASCII folds', 'example.com', UnicodeToIDN('EXAMPLE.COM'));
+
+  // MVP limitation: Latin-1 Ü (U+00DC) is outside the folded ranges and
+  // passes through as-is. Only the ASCII letters fold, so 'MÜNCHEN'
+  // encodes to 'xn--mnchen-psa': the extended part matches Python's
+  // punycode of the U+00DC code point, the basic part is the folded ASCII
+  AssertEquals('Latin-1 Ü is not folded by the MVP', 'xn--mnchen-psa.com',
+    UnicodeToIDN('MÜNCHEN.com'));
+end;
+
+procedure TTestIDN.TestIDNAltSeparators;
+const
+  SepFF0E = #$EF#$BC#$8E; // U+FF0E FULLWIDTH FULL STOP
+  Sep3002 = #$E3#$80#$82; // U+3002 IDEOGRAPHIC FULL STOP
+  SepFF61 = #$EF#$BD#$81; // U+FF61 HALFWIDTH IDEOGRAPHIC FULL STOP
+begin
+  // All three Unicode separators act as the ASCII full stop (Stage 5);
+  // the roadmap vector: 'пример．рф' must split into two labels
+  AssertEquals('U+FF0E acts as a label separator', 'xn--e1afmkfd.xn--p1ai',
+    UnicodeToIDN('пример' + SepFF0E + 'рф'));
+  AssertEquals('U+3002 acts as a label separator', 'xn--e1afmkfd.xn--p1ai',
+    UnicodeToIDN('пример' + Sep3002 + 'рф'));
+  AssertEquals('U+FF61 acts as a label separator', 'xn--e1afmkfd.xn--p1ai',
+    UnicodeToIDN('пример' + SepFF61 + 'рф'));
+
+  // Round-trip: the decoded form uses the ASCII full stop
+  AssertEquals('Separators decode to the ASCII full stop', 'пример.рф',
+    IDNToUnicode(UnicodeToIDN('пример' + SepFF0E + 'рф')));
+
+  // The decode direction deliberately does not map separators: a foreign
+  // label that never went through the encoder is kept verbatim
+  AssertEquals('Decode keeps a foreign separator verbatim',
+    'пример' + SepFF0E + 'рф', IDNToUnicode('пример' + SepFF0E + 'рф'));
+end;
+
+procedure TTestIDN.TestIDNForbiddenASCII;
+const
+  // The forbidden list of fpidn.pas (UseSTD3ASCIIRules-lite), duplicated
+  // here on purpose: the test pins the behavior, not the constant
+  ForbiddenTestChars: array[0..9] of Char =
+    ('<', '>', '"', '/', '\', '?', '#', '@', ':', '|');
+var
+  aOut: string;
+  i: Integer;
+begin
+  // Roadmap vector: 'exa mple.com' is rejected (Try*-contract: False with
+  // the output guaranteed empty)
+  AssertFalse('Space in a label fails', TryUnicodeToIDN('exa mple.com', aOut));
+  AssertEquals('Failed encode leaves output empty', EmptyStr, aOut);
+  AssertEquals('Plain wrapper projects the failure to EmptyStr', EmptyStr,
+    UnicodeToIDN('exa mple.com'));
+
+  // UseSTD3 applies to non-ASCII labels as well
+  AssertFalse('Space inside a Cyrillic label fails',
+    TryUnicodeToIDN('т est.com', aOut));
+  AssertEquals('Failed encode leaves output empty (2)', EmptyStr, aOut);
+
+  // Every character of the forbidden list
+  for i := Low(ForbiddenTestChars) to High(ForbiddenTestChars) do
+  begin
+    AssertFalse('Forbidden character ''' + ForbiddenTestChars[i] + ''' fails',
+      TryUnicodeToIDN('a' + ForbiddenTestChars[i] + 'b.com', aOut));
+    AssertEquals('Failed encode leaves output empty (3)', EmptyStr, aOut);
+  end;
+
+  // Control bytes (below $21) are forbidden too
+  AssertFalse('Control byte fails', TryUnicodeToIDN('a' + #$01 + 'b.com', aOut));
+  AssertEquals('Failed encode leaves output empty (4)', EmptyStr, aOut);
+
+  // Allowed ASCII still passes: the hyphen of LDH labels
+  AssertTrue('Hyphen is allowed', TryUnicodeToIDN('exa-mple.com', aOut));
+  AssertEquals('Hyphen result', 'exa-mple.com', aOut);
+end;
+
+procedure TTestIDN.TestIDNLabelLengthLimit;
+var
+  aOut: string;
+begin
+  // DNS limit: a label is at most 63 bytes, ASCII labels included
+  AssertTrue('A 63-byte ASCII label passes',
+    TryUnicodeToIDN(StringOfChar('a', 63) + '.com', aOut));
+  AssertEquals('A 63-byte ASCII label passes unchanged',
+    StringOfChar('a', 63) + '.com', aOut);
+  AssertFalse('A 64-byte ASCII label fails',
+    TryUnicodeToIDN(StringOfChar('a', 64) + '.com', aOut));
+  AssertEquals('Failed encode leaves output empty', EmptyStr, aOut);
+
+  // Roadmap vector: a label of 70 characters fails; the xn-- encoding of
+  // 70 Cyrillic characters is longer than 63 bytes as well
+  AssertFalse('A 70-character Cyrillic label fails',
+    TryUnicodeToIDN(RepeatUTF8(#$D0#$B0, 70) + '.com', aOut));
+  AssertEquals('Failed encode leaves output empty (2)', EmptyStr, aOut);
+end;
+
+procedure TTestIDN.TestIDNDomainLengthLimit;
+var
+  aLabel, aOut: string;
+begin
+  // DNS limit: the whole domain is at most 253 bytes. Every label below is
+  // within the 63-byte label limit, so the failure comes from the total
+  aLabel := StringOfChar('a', 61);
+  AssertFalse('A 309-byte domain fails',
+    TryUnicodeToIDN(aLabel + '.' + aLabel + '.' + aLabel + '.' + aLabel + '.' +
+      aLabel, aOut));
+  AssertEquals('Failed encode leaves output empty', EmptyStr, aOut);
+
+  // The same labels in a 247-byte domain still pass
+  AssertTrue('A 247-byte domain passes',
+    TryUnicodeToIDN(aLabel + '.' + aLabel + '.' + aLabel + '.' + aLabel, aOut));
+  AssertEquals('A 247-byte domain passes unchanged',
+    aLabel + '.' + aLabel + '.' + aLabel + '.' + aLabel, aOut);
 end;
 
 initialization

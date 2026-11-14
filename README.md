@@ -48,6 +48,12 @@ begin
 end;
 ```
 
+The `Try*` variants (`TryUnicodeToIDN`, `TryIDNToUnicode`,
+`TryUTF8ToPunycode`, `TryPunycodeToUTF8`) are the recommended API: they
+return `False` on invalid input (with the output parameter guaranteed
+empty), while the plain functions project every failure to an empty
+string.
+
 ### Demo console application
 
 A small console demonstration is located in `examples/demo_console`. Open the
@@ -57,6 +63,31 @@ A small console demonstration is located in `examples/demo_console`. Open the
 lazbuild examples/demo_console/demo_console.lpi
 ./demo_console
 ```
+
+---
+
+## Limitations
+
+The library implements Punycode (RFC 3492) plus a pragmatic subset of IDNA
+mapping — not full IDNA2008/UTS-46 processing:
+
+* **No NFC normalization.** The input is expected to be already normalized;
+  composed and decomposed forms of the same name encode to different labels.
+* **Case folding is an MVP.** Only ASCII `A-Z`, Cyrillic `U+0400..U+042F`
+  (including `Ё → ё`) and basic Greek `U+0391..U+03A9` fold to lowercase.
+  Other characters (e.g. Latin-1 `Ü`, Turkish `İ`) pass through unchanged.
+* **UseSTD3ASCIIRules-lite.** Labels containing bytes below `$21` (control
+  characters and space) or any of `<>"/\?#@:|` are rejected. Other non-LDH
+  ASCII characters (e.g. `_`, `+`, `%`) pass through.
+* **DNS length limits.** A label longer than 63 bytes (ASCII labels and
+  `xn--` labels alike) or a domain longer than 253 bytes fails.
+* **Label separators.** `U+FF0E` `．`, `U+3002` `。` and `U+FF61` `｡` are
+  treated as dots by the encode direction only; the decode direction keeps
+  them verbatim.
+* **Strict input validation.** The encode direction requires well-formed
+  UTF-8; the decode direction requires valid punycode. Invalid input fails
+  (`Try*` returns `False`, plain functions return an empty string) instead
+  of producing garbage.
 
 ---
 
