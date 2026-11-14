@@ -44,3 +44,7 @@ benchmarks/benchconsole.exe
 benchmarks/results.csv
 
 benchmarks-dor/
+
+# Local-only session files (not part of the published repository)
+AGENTS.md
+.zcode/
