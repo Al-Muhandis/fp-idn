@@ -34,6 +34,9 @@ type
     procedure TestInvalidPunycode;
     procedure TestCorruptedData;
     procedure TestOutOfBoundsAndCorruptedData;
+    // Strict input validation (Stage 2): invalid input never becomes garbage
+    procedure TestStrictUTF8Encode;
+    procedure TestStrictPunycodeDecode;
     // Reference vectors verified against Python's punycode codec
     procedure TestReferenceVectors;
     // Stress vector for encoder overflow (enabled in Stage 1)
@@ -332,15 +335,45 @@ begin
   AssertEquals('5000 x ''a'' must decode to 5000 x U+0080',
     RepeatUTF8(#$C2#$80, 5000), puny);
 
-  // Out-of-bounds: 20 x 'z' ends with a truncated digit group (Stage 2
-  // will make that invalid input). 20 x '9' overflows W/I in the decoder;
-  // since Stage 1 that overflow is cut off by explicit guards, not luck.
+  // 20 x 'z' ends with a truncated digit group: invalid input since
+  // Stage 2 (Python raises "incomplete punycode string"); here it also
+  // dies on the W overflow guard. 20 x '9' overflows W/I; since Stage 1
+  // that is cut off by explicit guards, not luck.
   puny := PunycodeToUTF8(StringOfChar('z', 20));
-  // TODO Этап 2: включить проверку, когда обрыв цифровой группы станет
-  // невалидным входом (а не трактующим обрыв как финальную цифру):
-  // AssertEquals('20 x ''z'': truncated digit group', EmptyStr, puny);
+  AssertEquals('20 x ''z'': truncated digit group', EmptyStr, puny);
   puny := PunycodeToUTF8(StringOfChar('9', 20));
   AssertEquals('20 x ''9'': overflow', EmptyStr, puny);
+end;
+
+procedure TTestPunycode.TestStrictUTF8Encode;
+begin
+  // Stage 2: the encoder input must be well-formed UTF-8 (RFC 3629); any
+  // violation fails the whole input with EmptyStr — no phantom code
+  // points, no skipped bytes
+  AssertEquals('Truncated 2-byte sequence', EmptyStr, UTF8ToPunycode(#$C3'AB'));
+  AssertEquals('Stray continuation byte', EmptyStr, UTF8ToPunycode(#$80));
+  AssertEquals('Invalid lead byte ($F8)', EmptyStr,
+    UTF8ToPunycode('a' + #$F8#$80#$80#$80#$80 + 'b'));
+  AssertEquals('Overlong encoding ($C0 $80)', EmptyStr, UTF8ToPunycode(#$C0#$80));
+  AssertEquals('UTF-16 surrogate (ED A0 80)', EmptyStr, UTF8ToPunycode(#$ED#$A0#$80));
+  AssertEquals('Above U+10FFFF (F4 90 80 80)', EmptyStr, UTF8ToPunycode(#$F4#$90#$80#$80));
+  // Valid UTF-8 must still encode
+  AssertEquals('Valid UTF-8 still encodes', 'e1aybc', UTF8ToPunycode('тест'));
+end;
+
+procedure TTestPunycode.TestStrictPunycodeDecode;
+begin
+  // Stage 2 decode-side strictness: a non-ASCII byte in the basic part
+  // (before the last delimiter) is invalid, since basic code points are
+  // ASCII per RFC 3492 (verified: Python raises UnicodeDecodeError)
+  AssertEquals('Non-ASCII byte in basic part', EmptyStr,
+    PunycodeToUTF8('x' + #$C3#$A4 + '-aa'));
+
+  // A valid punycode without a delimiter must still decode; the exact
+  // output is verified with Python ('Ωίθηδ'). Pure-ASCII inputs decode as
+  // digit sequences by design, so this is not an identity round-trip.
+  AssertEquals('Valid punycode without delimiter',
+    #$CE#$A9#$CE#$AF#$CE#$B8#$CE#$B7#$CE#$B4, PunycodeToUTF8('example'));
 end;
 
 { TTestIDN }

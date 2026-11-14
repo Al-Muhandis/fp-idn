@@ -72,72 +72,86 @@ begin
   end;
 end;
 
-// Convert a UTF-8 string into an array of Unicode code points
-function UTF8ToUnicodeArray(const aUTF8Str: string): TUnicodeArray;
+// Strict UTF-8 decoder: converts a UTF-8 string into an array of Unicode
+// code points and accepts only well-formed UTF-8 (RFC 3629). A stray
+// continuation byte, an invalid lead byte, a truncated sequence, a missing
+// continuation inside a sequence, an overlong encoding, a UTF-16 surrogate
+// or a code point above U+10FFFF fails the whole input: the caller gets
+// False and an empty array, never a partially parsed or "repaired" result.
+function TryUTF8ToUnicodeArray(const aUTF8Str: string; out aArray: TUnicodeArray): Boolean;
 var
-  i, aPos: Integer;
+  i, aPos, aLen: Integer;
   aCodePoint: Cardinal;
-  aByteCount: Integer;
+  aByteCount, aSeqLen: Integer;
+  aParsed: TUnicodeArray;
 begin
-  Initialize(Result);
-  SetLength(Result, Length(aUTF8Str));
+  aLen := Length(aUTF8Str);
+  SetLength(aParsed, aLen);
   aPos := 0;
   i := 1;
 
-  while i <= Length(aUTF8Str) do
+  while i <= aLen do
   begin
-    // Determine the number of bytes in the UTF-8 character
+    // Determine the number of bytes in the UTF-8 character. Lead bytes
+    // $C0/$C1 (always overlong) and $F5..$F7 (always above U+10FFFF) are
+    // rejected by the lead ranges themselves.
     case Ord(aUTF8Str[i]) of
       $00..$7F: // 1-byte sequence (ASCII)
         begin
           aCodePoint := Ord(aUTF8Str[i]);
-          aByteCount := 1;
+          aSeqLen := 1;
         end;
-      $C0..$DF: // 2-byte sequence
+      $C2..$DF: // 2-byte sequence
         begin
           aCodePoint := Ord(aUTF8Str[i]) and $1F;
-          aByteCount := 2;
+          aSeqLen := 2;
         end;
       $E0..$EF: // 3-byte sequence
         begin
           aCodePoint := Ord(aUTF8Str[i]) and $0F;
-          aByteCount := 3;
+          aSeqLen := 3;
         end;
-      $F0..$F7: // 4-byte sequence
+      $F0..$F4: // 4-byte sequence
         begin
           aCodePoint := Ord(aUTF8Str[i]) and $07;
-          aByteCount := 4;
+          aSeqLen := 4;
         end;
-      else // Skip unknown byte
-        begin
-          Inc(i);
-          Continue;
-        end;
+      else // $80..$BF, $C0/$C1, $F5..$FF: invalid lead byte
+        Exit(False);
     end;
 
-    if (i + aByteCount - 1) > Length(aUTF8Str) then
-      Break;
+    if (i + aSeqLen - 1) > aLen then
+      Exit(False); // truncated sequence at the end of input
 
     Inc(i);
-    while (aByteCount > 1) and (i <= Length(aUTF8Str)) do
+    aByteCount := aSeqLen;
+    while aByteCount > 1 do
     begin
       if (Ord(aUTF8Str[i]) and $C0) <> $80 then
-        Break;
+        Exit(False); // non-continuation byte inside the sequence
 
       aCodePoint := (aCodePoint shl 6) or (Ord(aUTF8Str[i]) and $3F);
       Inc(i);
       Dec(aByteCount);
     end;
 
+    // Reject overlong encodings: the code point must not fit a shorter form
+    if (aSeqLen = 3) and (aCodePoint < $800) then
+      Exit(False);
+    if (aSeqLen = 4) and ((aCodePoint < $10000) or (aCodePoint > $10FFFF)) then
+      Exit(False);
+    // Reject UTF-16 surrogate code points
+    if (aCodePoint >= $D800) and (aCodePoint <= $DFFF) then
+      Exit(False);
+
     // Append code point to array
-    if aPos < Length(Result) then
-    begin
-      Result[aPos] := aCodePoint;
-      Inc(aPos);
-    end;
+    aParsed[aPos] := aCodePoint;
+    Inc(aPos);
   end;
 
-  SetLength(Result, aPos);
+  SetLength(aParsed, aPos);
+  aArray := aParsed;
+  Result := True;
 end;
 
 function UnicodeToUTF8Char(U: Cardinal; Dest: PByte): Integer; inline;
@@ -178,25 +192,38 @@ begin
     Result := 0; // Invalid character
 end;
 
-// Convert an array of Unicode code points into a UTF-8 string
-function UnicodeArrayToUTF8(const UnicodeArray: TUnicodeArray): String;
+// Convert an array of Unicode code points into a UTF-8 string. Returns
+// False on an invalid code point (above U+10FFFF): the strict decoder never
+// produces such points, so this is a defensive check that must fail loudly
+// (False + empty string), not silently drop a character.
+function TryUnicodeArrayToUTF8(const UnicodeArray: TUnicodeArray; out aUTF8Str: String): Boolean;
 var
-  MaxLen, ActualLen, i: Integer;
+  MaxLen, ActualLen, i, aBytes: Integer;
   pDest: PByte;
 begin
-  // Maximum possible length: each character is up to 4 bytes (UTF-8 can encode surrogates)
+  aUTF8Str := EmptyStr;
+  // Maximum possible length: each character is up to 4 bytes
   MaxLen := Length(UnicodeArray) * 4;
-  //Initialize(Result);
-  SetLength(Result, MaxLen);
-  if MaxLen = 0 then Exit;
+  SetLength(aUTF8Str, MaxLen);
+  if MaxLen = 0 then
+    Exit(True); // empty input is a valid empty output
 
-  pDest := @Result[1];
+  pDest := @aUTF8Str[1];
   ActualLen := 0;
 
   for i := 0 to High(UnicodeArray) do
-    Inc(ActualLen, UnicodeToUTF8Char(UnicodeArray[i], pDest + ActualLen));
+  begin
+    aBytes := UnicodeToUTF8Char(UnicodeArray[i], pDest + ActualLen);
+    if aBytes = 0 then
+    begin
+      aUTF8Str := EmptyStr;
+      Exit(False); // UnicodeToUTF8Char rejected the code point
+    end;
+    Inc(ActualLen, aBytes);
+  end;
 
-  SetLength(Result, ActualLen);
+  SetLength(aUTF8Str, ActualLen);
+  Result := True;
 end;
 
 // Main function for encoding into Punycode
@@ -210,7 +237,10 @@ var
   aBias, aDelta, N, M, Q, K, T: QWord;
   i: Integer;
 begin
-  aInput := UTF8ToUnicodeArray(UTF8Str);
+  // Strict UTF-8 validation (Stage 2): malformed input must never reach
+  // the encoder and turn into garbage output
+  if not TryUTF8ToUnicodeArray(UTF8Str, aInput) then
+    Exit(EmptyStr);
   aInputLen := Length(aInput);
 
   if aInputLen = 0 then
@@ -318,6 +348,7 @@ var
   aBias, N, I, K, aDigit, T, W: QWord;
   aPos, aDelimPos: Integer;
   aOldI, D: QWord;
+  aGroupDone: Boolean;
 begin
   aInputLen := Length(aPunycodeStr);
 
@@ -332,9 +363,15 @@ begin
   SetLength(aOutput, aBasicLen);
   aOutputLen := aBasicLen;
 
-  // Copy basic characters
+  // Copy basic characters; per RFC 3492 every basic code point is ASCII,
+  // so a byte >= $80 makes the whole input invalid instead of being
+  // silently re-encoded into random code points (Stage 2)
   for aPos := 1 to aBasicLen do
+  begin
+    if Ord(aPunycodeStr[aPos]) >= $80 then
+      Exit(EmptyStr);
     aOutput[aPos - 1] := Ord(aPunycodeStr[aPos]);
+  end;
 
   N := _INITIAL_N;
   I := 0;
@@ -350,6 +387,7 @@ begin
     aOldI := I;
     W := 1;
     K := _BASE;
+    aGroupDone := False;
 
     while aPos <= aInputLen do
     begin
@@ -372,7 +410,10 @@ begin
         T := K - aBias;
 
       if aDigit < T then
+      begin
+        aGroupDone := True;
         Break;
+      end;
 
       // RFC 3492 section 6.4: w *= (base - t), fail on overflow
       if W > High(QWord) div (_BASE - T) then
@@ -380,6 +421,12 @@ begin
       W *= (_BASE - T);
       Inc(K, _BASE);
     end;
+
+    // RFC 3492 decoder: input that ends inside a digit group (before a
+    // digit < t arrives) is invalid, not "one more final digit" (Stage 2;
+    // reference Python raises "incomplete punycode string")
+    if not aGroupDone then
+      Exit(EmptyStr);
 
     // RFC 3492 section 6.4: i - oldi must not wrap around
     if I < aOldI then
@@ -396,12 +443,16 @@ begin
       Exit(EmptyStr);
     N += D;
 
+    // A point above U+10FFFF is not valid Unicode: fail instead of letting
+    // it through to the output (Stage 2 completes the Stage 1 guard;
+    // reference Python raises "Invalid character U+...")
+    if N > $10FFFF then
+      Exit(EmptyStr);
+
     if aOutputLen >= High(aOutput) then SetLength(aOutput, Round(aOutputLen*1.33)+1);
 
-    // Prevent out-of-bounds access
-    if I > aOutputLen then
-      I := aOutputLen;
-
+    // I <= aOutputLen is guaranteed by the mod above, so no clamping is
+    // needed before the insertion
     if I < aOutputLen then
       Move(aOutput[I], aOutput[I + 1], (aOutputLen - I) * SizeOf(Cardinal));
 
@@ -412,7 +463,8 @@ begin
   end;
 
   SetLength(aOutput, aOutputLen);
-  Result := UnicodeArrayToUTF8(aOutput);
+  if not TryUnicodeArrayToUTF8(aOutput, Result) then
+    Result := EmptyStr;
 end;
 
 end.
