@@ -21,6 +21,26 @@
 
 ---
 
+## Installation
+
+### Via the Lazarus package
+
+1. Clone or download this repository.
+2. In Lazarus choose `Package → Open Package File (.lpk)` and open `fpidn_rt.lpk`.
+3. In the package editor click `Compile`, then `Use → Add to Project` —
+   Lazarus adds the package dependency to your project and extends the unit
+   search path automatically.
+4. Add `fpidn` and/or `fppunycode` to the `uses` clause of your program.
+
+### Without the IDE package
+
+`fppunycode.pas` and `fpidn.pas` depend on nothing beyond the FCL/RTL, so the
+package step is optional: copy both units into your project folder, or add
+their directory to the project's unit search path (`Other unit files (-Fu)` in
+`Project → Project Options → Compiler Settings → Paths`).
+
+---
+
 ## Usage
 
 ### Convert UTF-8 to Punycode
