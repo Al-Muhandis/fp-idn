@@ -23,7 +23,24 @@
 
 ## Installation
 
-### Via the Lazarus package
+### Via the Online Package Manager (recommended)
+
+The package is published in the Lazarus Online Package Manager (OPM) as
+**FpIdn** (Networking category):
+
+1. In Lazarus open `Package → Online Package Manager`. On the first launch
+   the package index is downloaded automatically.
+2. Find **FpIdn** and press **Install** — OPM downloads, compiles and
+   registers the package.
+3. Add the package to your project: `Project → Project Inspector →
+   Required Packages → Add (+)` → `fpidn_rt`.
+4. Add `fpidn` and/or `fppunycode` to the `uses` clause of your program.
+
+Future releases are delivered through OPM as well: the package manifest
+(`update_FpIdn.json`) points at this repository's release archives, so a new
+version shows up in OPM shortly after it is tagged here.
+
+### From sources via the Lazarus package
 
 1. Clone or download this repository.
 2. In Lazarus choose `Package → Open Package File (.lpk)` and open `fpidn_rt.lpk`.
